@@ -545,6 +545,13 @@ window.__ModuleLoader__.load({
 .secm-insp-input { height: 28px; padding: 0 8px; box-sizing: border-box; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12px; }
 .secm-insp-status { flex: none; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
 .secm-insp-sect { margin-top: 2px; font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--dsw-alias-label-secondary); }
+.secm-insp-rowwrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.secm-insp-actions { flex: none; display: flex; align-items: center; gap: 2px; }
+.secm-insp-remote { display: flex; flex-direction: column; gap: 6px; padding: 6px 6px 8px; max-height: 280px; overflow: auto; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 10px; background: var(--dsw-alias-bg-base); }
+.secm-insp-alltitle { font-size: 11px; font-weight: 600; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
+.secm-insp-file { display: flex; flex-direction: column; gap: 2px; }
+.secm-insp-keys { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 0; padding: 0; list-style: none; }
+.secm-insp-key { font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 12px; color: var(--dsw-alias-label-primary); }
 .secm-insp-grow { flex: 1 1 60px; min-width: 60px; }
 .secm-insp-key { flex: 0 1 120px; min-width: 80px; text-transform: uppercase; }
 .secm-insp-pre { margin: 0; padding: 8px 10px; max-height: 180px; overflow: auto; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 10px; background: var(--dsw-alias-bg-base); font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 11px; line-height: 16px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--dsw-alias-label-secondary); }
@@ -630,6 +637,7 @@ window.__ModuleLoader__.load({
       const [confirming, setConfirming] = React.useState(null)
       const [busy, setBusy] = React.useState(false)
       const [remote, setRemote] = React.useState(null)
+      const [expandedRemote, setExpandedRemote] = React.useState(null)
 
       const [showAllRemote, setShowAllRemote] = React.useState(false)
       React.useEffect(() => {
@@ -876,11 +884,30 @@ window.__ModuleLoader__.load({
                     remote.scoped != null && !showAllRemote
                       ? h('p', { className: 'mcpm-insp-note' }, `当前工作区镜像的是 ${remote.scoped.label.length > 0 ? remote.scoped.label : remote.scoped.node}（${remote.scoped.node}）· 远端 ${remote.scoped.remotePath}`)
                       : null,
-                    h('ul', { className: 'secm-insp-rows' }, (remote.nodes ?? []).map(node => h('li', { key: node.node, className: 'secm-insp-row' },
-                        h('span', { className: 'secm-insp-name' }, node.label.length > 0 ? node.label : node.node),
-                        h('span', { className: 'secm-insp-desc' }, (node.files ?? []).length === 0
-                          ? `${node.node} · 没有 .env`
-                          : `${String((node.files ?? []).length)} 个 .env / ${String(node.keyCount)} 个键 · ${node.node}`),
+                    h('ul', { className: 'secm-insp-rows' }, (remote.nodes ?? []).map(node => h('li', { key: node.node, className: 'secm-insp-rowwrap' },
+                        h('div', { className: 'secm-insp-row' },
+                          h('span', { className: 'secm-insp-name' }, node.label.length > 0 ? node.label : node.node),
+                          h('span', { className: 'secm-insp-desc' }, (node.files ?? []).length === 0
+                            ? `${node.node} · 没有 .env`
+                            : `${String((node.files ?? []).length)} 个 .env / ${String(node.keyCount)} 个键 · ${node.node}`),
+                          h('span', { className: 'secm-insp-actions' },
+                            (node.files ?? []).length > 0
+                              ? h(Button, {
+                                  size: 'sm', variant: 'ghost',
+                                  'data-secm-expand': node.node,
+                                  onClick: () => setExpandedRemote(current => (current === node.node ? null : node.node)),
+                                }, expandedRemote === node.node ? '收起' : '展开')
+                              : null,
+                          ),
+                        ),
+                        expandedRemote === node.node && (node.files ?? []).length > 0
+                          ? h('div', { className: 'secm-insp-remote' }, (node.files ?? []).map(file => h('div', { key: file.path, className: 'secm-insp-file' },
+                              h('div', { className: 'secm-insp-alltitle' }, `${file.nodePath ?? file.path}　${String(file.keys.length)} 个键`),
+                              file.keys.length === 0
+                                ? h('p', { className: 'secm-insp-note' }, file.readable ? '（没有键）' : '读不到内容')
+                                : h('ul', { className: 'secm-insp-keys' }, file.keys.map(key => h('li', { key, className: 'secm-insp-key' }, key))),
+                            )))
+                          : null,
                       ))),
                   )
                 : null,
@@ -955,6 +982,7 @@ window.__ModuleLoader__.load({
                       width: Math.round(box.width),
                       text: panel.textContent.replace(/\s+/g, ' ').trim().slice(0, 400),
                       rows: panel.querySelectorAll('.secm-insp-row').length,
+                      remoteKeys: panel.querySelectorAll('.secm-insp-keys .secm-insp-key').length,
                       inputs: panel.querySelectorAll('input').length,
                     }
                   })(),
