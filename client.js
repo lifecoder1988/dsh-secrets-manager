@@ -91,6 +91,38 @@ window.__ModuleLoader__.load({
 .secm-remote-path { flex: none; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 12px; color: var(--dsw-alias-label-primary); }
 .secm-remote-keys { flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
 `
+    /**
+     * Copy text without rendering it. The panel is served over plain http on a
+     * LAN address, where `navigator.clipboard` is typically unavailable, so the
+     * textarea + execCommand fallback carries the copy.
+     */
+    async function copyText(text) {
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard !== undefined
+          && typeof navigator.clipboard.writeText === 'function') {
+          await navigator.clipboard.writeText(text)
+          return true
+        }
+      } catch {
+        // Fall through to the legacy path.
+      }
+      try {
+        const area = document.createElement('textarea')
+        area.value = text
+        area.setAttribute('readonly', '')
+        area.style.position = 'fixed'
+        area.style.top = '-1000px'
+        area.style.opacity = '0'
+        document.body.appendChild(area)
+        area.select()
+        const ok = document.execCommand('copy')
+        document.body.removeChild(area)
+        return ok
+      } catch {
+        return false
+      }
+    }
+
     async function call(path, init) {
       const response = await fetch(new URL(API + path, location.origin), init)
       const text = await response.text()
@@ -372,9 +404,17 @@ window.__ModuleLoader__.load({
         }
         keyRows.push(h('li', { key: entry.key, className: 'secm-row' },
           h('span', { className: 'secm-key' }, entry.key),
-          h('span', { className: 'secm-value' }, revealed.has(entry.key) ? entry.value : mask(entry.value)),
+          // The page never paints a value: it can be copied, and edit writes a
+          // new one.
+          h('span', { className: 'secm-value' }, '••••••'),
           h('span', { className: 'secm-row-actions' },
-            h(Button, { size: 'sm', variant: 'ghost', onClick: () => toggleReveal(entry.key) }, revealed.has(entry.key) ? '隐藏' : '显示'),
+            h(Button, {
+              size: 'sm', variant: 'ghost',
+              onClick: async () => {
+                const ok = await copyText(entry.value ?? '')
+                setNotice(ok ? { kind: 'ok', text: `已复制 ${entry.key} 的值` } : { kind: 'error', text: `复制 ${entry.key} 失败：浏览器没有剪贴板权限` })
+              },
+            }, '复制值'),
             h(Button, {
               size: 'sm', variant: 'ghost',
               onClick: () => { setNotice(null); setDraft({ mode: 'edit', key: entry.key, value: entry.value }) },
@@ -545,6 +585,9 @@ window.__ModuleLoader__.load({
 .secm-insp-input { height: 28px; padding: 0 8px; box-sizing: border-box; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12px; }
 .secm-insp-status { flex: none; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
 .secm-insp-sect { margin-top: 2px; font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--dsw-alias-label-secondary); }
+.secm-insp-sep { height: 0.5px; margin: 2px 0; background: var(--dsw-alias-border-l2); }
+.secm-insp-sect-row { display: flex; align-items: center; gap: 8px; }
+.secm-insp-count { flex: none; margin-left: auto; font-size: 12px; font-weight: 400; color: var(--dsw-alias-label-tertiary); }
 .secm-insp-rowwrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .secm-insp-actions { flex: none; display: flex; align-items: center; gap: 2px; }
 .secm-insp-remote { display: flex; flex-direction: column; gap: 6px; padding: 6px 6px 8px; max-height: 280px; overflow: auto; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 10px; background: var(--dsw-alias-bg-base); }
@@ -677,20 +720,23 @@ window.__ModuleLoader__.load({
       // Read on mount as well as on open, so the panel is ready when anchored.
       React.useEffect(() => { void load() }, [load])
 
-      const reveal = async (path, key) => {
-        const id = `${String(path)}:${key}`
-        if (shown.has(id)) {
-          setShown(current => { const next = new Set(current); next.delete(id); return next })
-          return
-        }
+      /**
+       * Read one value and put it on the clipboard without ever rendering it:
+       * the value exists only inside this function's stack.
+       */
+      const copyValue = async (path, key) => {
+        setBusy(true)
         try {
           const answer = await post('/file', { cwd, path })
           const entry = (answer.entries ?? []).find(item => item.key === key)
-          setValues(current => ({ ...current, [id]: entry?.value ?? '' }))
-          setShown(current => new Set(current).add(id))
+          if (entry === undefined) throw new Error(`没有 ${key} 这个键`)
+          const ok = await copyText(entry.value ?? '')
+          setNotice(ok ? `已复制 ${key} 的值` : `复制 ${key} 失败：浏览器没有剪贴板权限`)
           setError(null)
         } catch (failure) {
           setError(String(failure.message ?? failure))
+        } finally {
+          setBusy(false)
         }
       }
 
@@ -787,7 +833,10 @@ window.__ModuleLoader__.load({
                 h(Button, { size: 'sm', variant: 'outline', onClick: () => secmOpenSettings() }, '打开管理页'),
                 h(Button, { size: 'sm', variant: 'ghost', onClick: () => setOpen(false) }, '关闭'),
               ),
-              h('p', { className: 'secm-insp-note' }, `项目 ${projectRoot ?? cwd ?? '（未识别）'}`),
+              h('div', { className: 'secm-insp-sect-row' },
+                h('span', { className: 'secm-insp-sect' }, '本地'),
+                h('span', { className: 'secm-insp-count' }, `${projectRoot ?? cwd ?? '（未识别）'}`),
+              ),
               error !== null ? h('p', { className: 'secm-insp-err' }, error) : null,
               notice !== null ? h('p', { className: 'secm-insp-note' }, notice) : null,
               files === null
@@ -829,9 +878,13 @@ window.__ModuleLoader__.load({
                                     h(Button, { size: 'sm', variant: 'ghost', disabled: busy, onClick: () => setConfirming(null) }, '取消'),
                                   )
                                 : h(React.Fragment, null,
-                                    h('span', { className: 'secm-insp-desc' }, shown.has(id) ? (values[id] ?? '') : '••••••'),
+                                    h('span', { className: 'secm-insp-desc' }, '••••••'),
                                     h('span', { className: 'secm-insp-actions' },
-                                      h(Button, { size: 'sm', variant: 'ghost', onClick: () => { void reveal(picked, key) } }, shown.has(id) ? '隐藏' : '显示'),
+                                      h(Button, {
+                                        size: 'sm', variant: 'ghost', disabled: busy,
+                                        'data-secm-copy': key,
+                                        onClick: () => { void copyValue(picked, key) },
+                                      }, '复制值'),
                                       h(Button, { size: 'sm', variant: 'ghost', disabled: busy, onClick: () => { setConfirming(null); setEditing({ key, value: '' }) } }, '改'),
                                       h(Button, { size: 'sm', variant: 'ghost', disabled: busy, onClick: () => { setEditing(null); setConfirming(key) } }, '删'),
                                     ),
@@ -866,6 +919,7 @@ window.__ModuleLoader__.load({
                       ? h(Button, { size: 'sm', variant: 'outline', disabled: busy, onClick: () => { void createFile() } }, '在仓库根创建 .env')
                       : null,
                   ),
+              h('div', { className: 'secm-insp-sep' }),
               remote === null
                 ? h('p', { className: 'secm-insp-note' }, '远端读取中…（每个节点要跑若干次远端命令，通常几秒）')
                 : null,
@@ -911,7 +965,7 @@ window.__ModuleLoader__.load({
                       ))),
                   )
                 : null,
-              h('p', { className: 'secm-insp-note' }, '写入保留注释与顺序；值只在你点「显示」时读出来，也不会进模型上下文。'),
+              h('p', { className: 'secm-insp-note' }, '值不显示，只能整段复制到剪贴板；写入保留注释与顺序，值也不会进模型上下文。'),
 
             )
           : null,
