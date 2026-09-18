@@ -424,6 +424,26 @@ export function apply(ctx, config = {}) {
     }
   }
 
+
+  /**
+   * Run `worker` over `items` with a small concurrency cap, preserving order.
+   * Remote probes are network round trips; one at a time is what made a listing
+   * take seconds.
+   */
+  const mapLimit = async (items, limit, worker) => {
+    const results = new Array(items.length)
+    let next = 0
+    const runners = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+      for (;;) {
+        const index = next
+        next += 1
+        if (index >= items.length) return
+        results[index] = await worker(items[index], index)
+      }
+    })
+    await Promise.all(runners)
+    return results
+  }
   /** Dotenv file names, the same set the local index looks for. */
   const REMOTE_ENV_PATTERN = /^\.env(?:\.|$)/
 
@@ -457,6 +477,7 @@ export function apply(ctx, config = {}) {
   }
 
   const remoteEnv = async (input = {}) => {
+    const startedAt = Date.now()
     const devspace = devspaceService()
     if (devspace === null) {
       return { available: false, nodes: [], hint: '这个 harness 没有装 DevSpace 节点插件，所以没有远端可以列。' }
@@ -479,17 +500,25 @@ export function apply(ctx, config = {}) {
           entries = listing.files ?? []
         } catch (error) {
           errors.push(`${dir === '' ? '.' : dir}: ${messageOf(error)}`)
-          return
+          return []
         }
-        for (const entry of entries.filter(item => REMOTE_ENV_PATTERN.test(item.name))) {
+        const candidates = entries.filter(item => REMOTE_ENV_PATTERN.test(item.name))
+        const read = await mapLimit(candidates, 6, async (entry) => {
           const path = dir === '' ? entry.name : `${dir}/${entry.name}`
           const keys = await readRemoteKeys(devspace, node.name, path)
-          if (files.some(file => file.path === path)) return
-          const nodePath = path.startsWith('~/')
-            ? path
-            : `${String(node.root).replace(/[\\/]+$/, '')}/${path}`
-          files.push({ path, base: label, nodePath, bytes: entry.bytes, keys: keys ?? [], readable: keys !== null })
+          return { path, entry, keys }
+        })
+        const added = []
+        for (const item of read) {
+          if (item === null || files.some(file => file.path === item.path)) continue
+          const nodePath = item.path.startsWith('~/')
+            ? item.path
+            : `${String(node.root).replace(/[\\/]+$/, '')}/${item.path}`
+          const record = { path: item.path, base: label, nodePath, bytes: item.entry.bytes, keys: item.keys ?? [], readable: item.keys !== null }
+          files.push(record)
+          added.push(record)
         }
+        return added
       }
       for (const base of bases) {
         await collect(base, base === '' ? '.' : base)
@@ -519,6 +548,7 @@ export function apply(ctx, config = {}) {
     return {
       available: true,
       nodes: listed,
+      durationMs: Date.now() - startedAt,
       scoped: scope === null ? null : { node: scope.node, label: scope.label, remotePath: scope.remotePath, localPath: scope.localPath },
       total: all.length,
     }

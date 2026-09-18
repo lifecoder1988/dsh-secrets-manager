@@ -858,10 +858,13 @@ window.__ModuleLoader__.load({
                       ? h(Button, { size: 'sm', variant: 'outline', disabled: busy, onClick: () => { void createFile() } }, '在仓库根创建 .env')
                       : null,
                   ),
+              remote === null
+                ? h('p', { className: 'secm-insp-note' }, '远端读取中…（每个节点要跑若干次远端命令，通常几秒）')
+                : null,
               remote !== null && remote.available !== false && (remote.nodes ?? []).length > 0
                 ? h('div', null,
                     h('div', { className: 'secm-insp-head-row' },
-                      h('span', { className: 'secm-insp-sect' }, `远端节点 · ${String((remote.nodes ?? []).length)}${(remote.total ?? 0) > 1 && remote.scoped !== null ? `/${String(remote.total)}` : ''}`),
+                      h('span', { className: 'secm-insp-sect' }, `远端节点 · ${String((remote.nodes ?? []).length)}${(remote.total ?? 0) > 1 && remote.scoped !== null ? `/${String(remote.total)}` : ''}${remote.durationMs === undefined ? '' : ` · 读取 ${(remote.durationMs / 1000).toFixed(1)}s`}`),
                       h('span', { style: { flex: '1' } }),
                       (remote.total ?? 0) > 1
                         ? h(Button, {
@@ -877,7 +880,7 @@ window.__ModuleLoader__.load({
                         h('span', { className: 'secm-insp-name' }, node.label.length > 0 ? node.label : node.node),
                         h('span', { className: 'secm-insp-desc' }, (node.files ?? []).length === 0
                           ? `${node.node} · 没有 .env`
-                          : `${node.node} · ${String((node.files ?? []).length)} 个 .env · ${(node.files ?? []).flatMap(file => file.keys).slice(0, 5).join('、')}${node.keyCount > 5 ? ' 等' : ''}`),
+                          : `${String((node.files ?? []).length)} 个 .env / ${String(node.keyCount)} 个键 · ${node.node}`),
                       ))),
                   )
                 : null,
