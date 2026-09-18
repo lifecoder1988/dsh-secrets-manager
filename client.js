@@ -475,18 +475,63 @@ window.__ModuleLoader__.load({
 .secm-insp-chip:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
 .secm-insp-chip-active { color: var(--dsw-alias-label-primary); border-color: var(--dsw-alias-brand-primary); background: var(--dsw-alias-bg-layer-1); }
 .secm-insp-input { height: 28px; padding: 0 8px; box-sizing: border-box; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12px; }
+.secm-insp-status { flex: none; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+.secm-insp-grow { flex: 1 1 60px; min-width: 60px; }
+.secm-insp-key { flex: 0 1 120px; min-width: 80px; text-transform: uppercase; }
 .secm-insp-pre { margin: 0; padding: 8px 10px; max-height: 180px; overflow: auto; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 10px; background: var(--dsw-alias-bg-base); font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 11px; line-height: 16px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--dsw-alias-label-secondary); }
 `
 
     /** Workspace directory this Session works in. */
     function secmInspectorCwd(sessionId, sessions, workspaces) {
-      const summary = sessionId === undefined ? undefined : sessions?.byId?.[sessionId]
-      const direct = summary?.cwd ?? summary?.header?.cwd ?? summary?.workspacePath
-      if (typeof direct === 'string' && direct.length > 0) return direct
+      const pick = (entry) => {
+        const direct = entry?.cwd ?? entry?.header?.cwd ?? entry?.workspacePath
+        return typeof direct === 'string' && direct.length > 0 ? direct : null
+      }
       const items = workspaces?.items ?? []
+      const summary = sessionId === undefined ? undefined : sessions?.byId?.[sessionId]
+      const own = pick(summary)
+      if (own !== null) return own
       const owner = items.find(workspace => Array.isArray(workspace.sessionIds) && workspace.sessionIds.includes(sessionId))
       if (owner !== undefined) return owner.path
-      return items[0]?.path ?? null
+      // The Session under the conversation is the honest default; guessing the
+      // first workspace listed pointed the panel at another project's secrets.
+      const main = Object.values(sessions?.byId ?? {}).find(entry => (entry?.retainedBy?.mainView ?? 0) > 0)
+      const mainOwn = pick(main)
+      if (mainOwn !== null) return mainOwn
+      const mainOwner = main === undefined
+        ? undefined
+        : items.find(workspace => Array.isArray(workspace.sessionIds) && workspace.sessionIds.includes(main.id))
+      return mainOwner?.path ?? null
+    }
+
+    /** What the header entry last fetched, for the inspect probe below. */
+    let secmInspectorFacts = { at: null, cwd: null, projectRoot: null, files: null, keys: null, error: null }
+
+    const SECM_SECTION_LABEL = '项目密钥'
+    const SECM_SETTINGS_TRIGGER = 'button[aria-haspopup="dialog"]'
+
+    /**
+     * Open this plugin's Settings page. The shell owns that navigation and
+     * publishes no opener, so this presses the chrome it renders: the sidebar
+     * trigger, then the nav row carrying this section's label.
+     * @returns whether a trigger was found at all.
+     */
+    function secmOpenSettings() {
+      const trigger = document.querySelector(SECM_SETTINGS_TRIGGER)
+      if (trigger === null || typeof trigger.click !== 'function') return false
+      trigger.click()
+      let tries = 0
+      const pick = () => {
+        const panel = document.querySelector('div[role="dialog"][aria-labelledby]')
+        if (panel !== null) {
+          const row = [...panel.querySelectorAll('button')].find(button => (button.textContent ?? '').trim() === SECM_SECTION_LABEL)
+          if (row !== undefined) { row.click(); return }
+        }
+        tries += 1
+        if (tries < 25) window.setTimeout(pick, 40)
+      }
+      window.setTimeout(pick, 40)
+      return true
     }
 
     /**
@@ -501,33 +546,99 @@ window.__ModuleLoader__.load({
       const [open, setOpen] = React.useState(false)
       const [anchor, setAnchor] = React.useState(null)
       const [error, setError] = React.useState(null)
+      const [notice, setNotice] = React.useState(null)
       const holder = React.useRef(null)
       const [files, setFiles] = React.useState(null)
+      const [projectRoot, setProjectRoot] = React.useState(null)
       const [picked, setPicked] = React.useState(null)
       const [shown, setShown] = React.useState(() => new Set())
       const [values, setValues] = React.useState({})
-      React.useEffect(() => {
-        if (!open) return
-        void (async () => {
-          try {
-            const answer = await call(`/state${cwd === null ? '' : `?cwd=${encodeURIComponent(cwd)}`}`)
-            const list = (answer.packages ?? []).flatMap(pkg => (pkg.files ?? []).map(file => ({ ...file, owner: pkg.relative })))
-            setFiles(list)
-            setPicked(current => current ?? list[0]?.path ?? null)
-          } catch (failure) {
-            setError(String(failure.message ?? failure))
+      /** `{ key, value }` while one row is being re-valued. */
+      const [editing, setEditing] = React.useState(null)
+      /** `{ key, value }` while the add row is being filled in. */
+      const [adding, setAdding] = React.useState(null)
+      /** The key awaiting a delete confirmation. */
+      const [confirming, setConfirming] = React.useState(null)
+      const [busy, setBusy] = React.useState(false)
+
+      const load = React.useCallback(async () => {
+        try {
+          const answer = await call(`/state${cwd === null ? '' : `?cwd=${encodeURIComponent(cwd)}`}`)
+          const list = (answer.packages ?? []).flatMap(pkg => (pkg.files ?? []).map(file => ({ ...file, owner: pkg.relative })))
+          setFiles(list)
+          setProjectRoot(answer.projectRoot ?? null)
+          setPicked(current => (current !== null && list.some(file => file.path === current) ? current : (list[0]?.path ?? null)))
+          setError(null)
+          secmInspectorFacts = {
+            at: Date.now(),
+            cwd: answer.cwd ?? cwd,
+            projectRoot: answer.projectRoot ?? null,
+            files: list.map(file => file.relative),
+            keys: list.reduce((total, file) => total + (file.keys ?? []).length, 0),
+            error: null,
           }
-        })()
-      }, [open, cwd])
+        } catch (failure) {
+          setError(String(failure.message ?? failure))
+          secmInspectorFacts = { ...secmInspectorFacts, at: Date.now(), cwd, error: String(failure.message ?? failure) }
+        }
+      }, [cwd])
+      // Read on mount as well as on open, so the panel is ready when anchored.
+      React.useEffect(() => { void load() }, [load])
+
       const reveal = async (path, key) => {
         const id = `${String(path)}:${key}`
+        if (shown.has(id)) {
+          setShown(current => { const next = new Set(current); next.delete(id); return next })
+          return
+        }
         try {
           const answer = await post('/file', { cwd, path })
           const entry = (answer.entries ?? []).find(item => item.key === key)
           setValues(current => ({ ...current, [id]: entry?.value ?? '' }))
           setShown(current => new Set(current).add(id))
+          setError(null)
         } catch (failure) {
           setError(String(failure.message ?? failure))
+        }
+      }
+
+      /** One write against the picked file, then a fresh read of the index. */
+      const write = async (changes, message) => {
+        if (picked === null) {
+          setError('先选一个变量文件')
+          return
+        }
+        setBusy(true)
+        setError(null)
+        try {
+          await post('/write', { cwd, path: picked, changes })
+          setEditing(null)
+          setAdding(null)
+          setConfirming(null)
+          setShown(new Set())
+          setValues({})
+          setNotice(message ?? null)
+          await load()
+        } catch (failure) {
+          setError(String(failure.message ?? failure))
+        } finally {
+          setBusy(false)
+        }
+      }
+
+      /** Create the repository-root .env when the project has none yet. */
+      const createFile = async () => {
+        if (projectRoot === null) return
+        setBusy(true)
+        setError(null)
+        try {
+          await post('/write', { cwd, path: `${projectRoot}/.env`, changes: [] })
+          setNotice('已创建 .env')
+          await load()
+        } catch (failure) {
+          setError(String(failure.message ?? failure))
+        } finally {
+          setBusy(false)
         }
       }
 
@@ -546,8 +657,23 @@ window.__ModuleLoader__.load({
         const box = event.currentTarget.getBoundingClientRect()
         setAnchor({ top: box.bottom + 6, right: Math.max(8, window.innerWidth - box.right) })
         setError(null)
+        setNotice(null)
         setOpen(current => !current)
       }
+
+      const keyName = value => /^[A-Za-z_][A-Za-z0-9_]*$/.test(String(value ?? '').trim())
+      const current = files === null ? null : (files.find(file => file.path === picked) ?? null)
+      const keys = current?.keys ?? []
+      const valueInput = (state, setState, placeholder) => h('input', {
+        className: 'secm-insp-input secm-insp-grow',
+        type: 'password',
+        autoComplete: 'new-password',
+        placeholder,
+        value: state.value,
+        disabled: busy,
+        onChange: event => setState({ ...state, value: event.target.value }),
+      })
+
       return h('span', { className: 'secm-insp-head', ref: holder },
         h('style', null, secm_INSPECTOR_CSS),
         h('button', {
@@ -564,43 +690,91 @@ window.__ModuleLoader__.load({
             },
               h('div', { className: 'secm-insp-head-row' },
                 h('span', { className: 'secm-insp-title' }, '项目密钥'),
+                h('span', { className: 'secm-insp-status' }, files === null ? '读取中…' : `${String(keys.length)} 个键`),
                 h('span', { style: { flex: '1' } }),
+                h(Button, { size: 'sm', variant: 'outline', onClick: () => secmOpenSettings() }, '打开管理页'),
                 h(Button, { size: 'sm', variant: 'ghost', onClick: () => setOpen(false) }, '关闭'),
               ),
+              h('p', { className: 'secm-insp-note' }, `项目 ${projectRoot ?? cwd ?? '（未识别）'}`),
               error !== null ? h('p', { className: 'secm-insp-err' }, error) : null,
+              notice !== null ? h('p', { className: 'secm-insp-note' }, notice) : null,
               files === null
                 ? h('p', { className: 'secm-insp-note' }, '读取中…')
-                : files.length === 0
-                  ? h('p', { className: 'secm-insp-note' }, '这个仓库里还没有 .env 文件。')
-                  : h(React.Fragment, null,
-                      h('div', { className: 'secm-insp-strip' }, files.map(file => h('button', {
-                        key: file.path,
-                        type: 'button',
-                        className: `secm-insp-chip${file.path === picked ? ' secm-insp-chip-active' : ''}`,
-                        title: file.path,
-                        onClick: () => setPicked(file.path),
-                      }, file.relative))),
-                      h('ul', { className: 'secm-insp-rows' }, ((files.find(file => file.path === picked)?.keys) ?? []).map(key => {
-                        const id = `${String(picked)}:${key}`
-                        return h('li', { key, className: 'secm-insp-row' },
-                          h('span', { className: 'secm-insp-name' }, key),
-                          h('span', { className: 'secm-insp-desc' }, shown.has(id) ? (values[id] ?? '') : '••••••'),
-                          h('span', { className: 'secm-insp-actions' },
-                            h(Button, {
-                              size: 'sm', variant: 'ghost',
-                              onClick: () => {
-                                if (shown.has(id)) {
-                                  setShown(current => { const next = new Set(current); next.delete(id); return next })
-                                } else {
-                                  void reveal(picked, key)
-                                }
-                              },
-                            }, shown.has(id) ? '隐藏' : '显示'),
-                          ),
-                        )
-                      })),
-                    ),
-              h('p', { className: 'secm-insp-note' }, '值只在本地显示；完整编辑在 设置 → 项目密钥。'),
+                : h(React.Fragment, null,
+                    files.length === 0
+                      ? h('p', { className: 'secm-insp-note' }, '这个仓库里还没有 .env 文件。')
+                      : h('div', { className: 'secm-insp-strip' }, files.map(file => h('button', {
+                          key: file.path,
+                          type: 'button',
+                          className: `secm-insp-chip${file.path === picked ? ' secm-insp-chip-active' : ''}`,
+                          title: file.path,
+                          onClick: () => { setPicked(file.path); setEditing(null); setAdding(null); setConfirming(null) },
+                        }, `${file.relative}（${String((file.keys ?? []).length)}）`))),
+                    // In-place CRUD: the picked file's keys, each row able to
+                    // reveal, re-value and delete without leaving the panel.
+                    keys.length === 0
+                      ? h('p', { className: 'secm-insp-note' }, picked === null
+                          ? '先选一个变量文件。'
+                          : '这个文件还没有键，用下面的输入框加一个。')
+                      : h('ul', { className: 'secm-insp-rows' }, keys.map(key => {
+                          const id = `${String(picked)}:${key}`
+                          return h('li', { key, className: 'secm-insp-row' },
+                            h('span', { className: 'secm-insp-name' }, key),
+                            editing !== null && editing.key === key
+                              ? h(React.Fragment, null,
+                                  valueInput(editing, setEditing, '新值'),
+                                  h(Button, {
+                                    size: 'sm', variant: 'primary',
+                                    disabled: busy || editing.value.length === 0,
+                                    onClick: () => { void write([{ key, value: editing.value }], `已更新 ${key}`) },
+                                  }, '保存'),
+                                  h(Button, { size: 'sm', variant: 'ghost', disabled: busy, onClick: () => setEditing(null) }, '取消'),
+                                )
+                              : confirming === key
+                                ? h(React.Fragment, null,
+                                    h('span', { className: 'secm-insp-desc' }, `删除 ${key}？`),
+                                    h(Button, { size: 'sm', variant: 'ghost', disabled: busy, onClick: () => { void write([{ key, remove: true }], `已删除 ${key}`) } }, '删除'),
+                                    h(Button, { size: 'sm', variant: 'ghost', disabled: busy, onClick: () => setConfirming(null) }, '取消'),
+                                  )
+                                : h(React.Fragment, null,
+                                    h('span', { className: 'secm-insp-desc' }, shown.has(id) ? (values[id] ?? '') : '••••••'),
+                                    h('span', { className: 'secm-insp-actions' },
+                                      h(Button, { size: 'sm', variant: 'ghost', onClick: () => { void reveal(picked, key) } }, shown.has(id) ? '隐藏' : '显示'),
+                                      h(Button, { size: 'sm', variant: 'ghost', disabled: busy, onClick: () => { setConfirming(null); setEditing({ key, value: '' }) } }, '改'),
+                                      h(Button, { size: 'sm', variant: 'ghost', disabled: busy, onClick: () => { setEditing(null); setConfirming(key) } }, '删'),
+                                    ),
+                                  ),
+                          )
+                        })),
+                    picked === null
+                      ? null
+                      : h('div', { className: 'secm-insp-strip' },
+                          adding === null
+                            ? h(Button, {
+                                size: 'sm', variant: 'outline', disabled: busy,
+                                onClick: () => { setNotice(null); setAdding({ key: '', value: '' }) },
+                              }, '新增键')
+                            : h(React.Fragment, null,
+                                h('input', {
+                                  className: 'secm-insp-input secm-insp-key',
+                                  placeholder: 'KEY_NAME',
+                                  value: adding.key,
+                                  disabled: busy,
+                                  onChange: event => setAdding({ ...adding, key: event.target.value }),
+                                }),
+                                valueInput(adding, setAdding, '值'),
+                                h(Button, {
+                                  size: 'sm', variant: 'primary',
+                                  disabled: busy || !keyName(adding.key) || adding.value.length === 0,
+                                  onClick: () => { void write([{ key: adding.key.trim(), value: adding.value }], `已写入 ${adding.key.trim()}`) },
+                                }, '保存'),
+                                h(Button, { size: 'sm', variant: 'ghost', disabled: busy, onClick: () => setAdding(null) }, '取消'),
+                              )),
+                    files.length === 0 && projectRoot !== null
+                      ? h(Button, { size: 'sm', variant: 'outline', disabled: busy, onClick: () => { void createFile() } }, '在仓库根创建 .env')
+                      : null,
+                  ),
+              h('p', { className: 'secm-insp-note' }, '写入保留注释与顺序；值只在你点「显示」时读出来，也不会进模型上下文。'),
 
             )
           : null,
@@ -625,10 +799,12 @@ window.__ModuleLoader__.load({
         }, SecretsInspector))
 
         // Read-only self-check over the harness's own Cordis Inspect channel.
-        const inspect = ctx.get('cordisInspect')
-        if (inspect !== undefined) {
+        // Reactive injection, not a one-shot `ctx.get`: this plugin's apply may
+        // run before the inspect service exists (it did, so this manifest never
+        // reached the host roster).
+        ctx.inject(['cordisInspect'], (inspectCtx) => {
           try {
-            ctx.effect(() => inspect.register({
+            ctx.effect(() => inspectCtx.cordisInspect.register({
               manifest: {
                 id: 'SecretsManagerPage',
                 description: 'Live geometry and content facts of the Secrets Manager settings page.',
@@ -657,6 +833,21 @@ window.__ModuleLoader__.load({
                     }
                   })(),
 
+                  // What the header entry actually fetched, and what its panel
+                  // renders when it is open.
+                  inspectorFacts: secmInspectorFacts,
+                  inspectorPanel: (() => {
+                    const panel = document.querySelector('.secm-insp-panel')
+                    if (panel === null) return { mounted: false }
+                    const box = panel.getBoundingClientRect()
+                    return {
+                      mounted: true,
+                      width: Math.round(box.width),
+                      text: panel.textContent.replace(/\s+/g, ' ').trim().slice(0, 400),
+                      rows: panel.querySelectorAll('.secm-insp-row').length,
+                      inputs: panel.querySelectorAll('input').length,
+                    }
+                  })(),
                   live: live === null ? null : measureElement(live),
                   capturedCount: captured.length,
                   history: captured,
@@ -669,7 +860,7 @@ window.__ModuleLoader__.load({
           } catch (error) {
             console.warn('[secrets-manager] inspect provider registration failed:', error)
           }
-        }
+        })
       },
     }
   },
