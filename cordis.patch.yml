@@ -1,0 +1,4 @@
+# Secrets Manager: monorepo .env discovery, a Settings page, and DSH_ENV_* shell facts.
+- insert:
+    - id: secrets-manager
+      name: '@local/dsh-secrets-manager'

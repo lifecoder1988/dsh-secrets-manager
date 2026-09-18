@@ -1,0 +1,37 @@
+{
+  "name": "@local/dsh-secrets-manager",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Project secret management for the DeepSeek Harness: discover every .env file across a monorepo (root and workspace packages), edit keys safely in a Settings page, and hand the model a DSH_ENV_FILE / DSH_ENV_FILES pointer so shell commands can source the right environment.",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "license": "MIT",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "dotenv",
+    "monorepo",
+    "secrets"
+  ],
+  "files": [
+    "cordis.patch.yml",
+    "index.js",
+    "client.js",
+    "README.md",
+    "LICENSE"
+  ]
+}
