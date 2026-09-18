@@ -412,6 +412,83 @@ export function apply(ctx, config = {}) {
     }
   }
 
+  // ---- remote nodes (DevSpace) --------------------------------------
+
+  /** The DevSpace node service, when this harness runs the devspace plugin. */
+  const devspaceService = () => {
+    try {
+      const service = ctx.get('devspace')
+      return service !== undefined && typeof service.nodes === 'function' ? service : null
+    } catch {
+      return null
+    }
+  }
+
+  /** Dotenv file names, the same set the local index looks for. */
+  const REMOTE_ENV_PATTERN = /^\.env(?:\.|$)/
+
+  /** Key names of one remote dotenv file — never a value. */
+  const readRemoteKeys = async (devspace, nodeName, path) => {
+    try {
+      const text = await devspace.readText(nodeName, path, 128 * 1024)
+      return parseEnvFile(text).entries.map(entry => entry.key)
+    } catch (error) {
+      return null
+    }
+  }
+
+  /**
+   * The .env files that currently sit on each DevSpace node, with their key
+   * names and no values. The node root plus one level of subdirectories is
+   * scanned — enough for a repository root and its packages.
+   */
+  const remoteEnv = async () => {
+    const devspace = devspaceService()
+    if (devspace === null) {
+      return { available: false, nodes: [], hint: '这个 harness 没有装 DevSpace 节点插件，所以没有远端可以列。' }
+    }
+    const nodes = await devspace.nodes()
+    const listed = []
+    for (const node of nodes) {
+      const files = []
+      const errors = []
+      const collect = async (dir) => {
+        let entries = []
+        try {
+          const listing = await devspace.listFiles(node.name, dir)
+          entries = listing.files ?? []
+        } catch (error) {
+          errors.push(`${dir === '' ? '.' : dir}: ${messageOf(error)}`)
+          return
+        }
+        for (const entry of entries.filter(item => REMOTE_ENV_PATTERN.test(item.name))) {
+          const path = dir === '' ? entry.name : `${dir}/${entry.name}`
+          const keys = await readRemoteKeys(devspace, node.name, path)
+          files.push({ path, bytes: entry.bytes, keys: keys ?? [], readable: keys !== null })
+        }
+      }
+      await collect('')
+      let dirs = []
+      try {
+        dirs = (await devspace.listDirs(node.name, '')).filter(entry => entry.hidden !== true)
+      } catch (error) {
+        errors.push(`.: ${messageOf(error)}`)
+      }
+      for (const entry of dirs.slice(0, 20)) await collect(entry.name)
+      listed.push({
+        node: node.name,
+        label: node.label,
+        state: node.state,
+        root: node.root,
+        dialect: node.dialect,
+        files,
+        keyCount: files.reduce((total, file) => total + file.keys.length, 0),
+        errors,
+      })
+    }
+    return { available: true, nodes: listed }
+  }
+
   // ---- state and routes --------------------------------------------
 
   /** Everything the Settings page needs for one workspace. */
@@ -534,6 +611,10 @@ export function apply(ctx, config = {}) {
       if (rejectUnauthenticated(ctx, req, res)) return
       const url = new URL(String(req.url), 'http://localhost')
       const route = url.pathname.slice(ROUTE_PREFIX.length) || '/'
+      if (req.method === 'GET' && route === '/remote') {
+        sendJson(res, 200, await remoteEnv())
+        return
+      }
       if (req.method === 'GET' && route === '/state') {
         const cwd = url.searchParams.get('cwd')
         sendJson(res, 200, await buildState(cwd === null ? undefined : cwd))
@@ -570,7 +651,7 @@ export function apply(ctx, config = {}) {
     parameters: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['list', 'files', 'set', 'remove'], description: 'Operation to perform.' },
+        action: { type: 'string', enum: ['list', 'files', 'set', 'remove', 'remote'], description: 'Operation to perform.' },
         key: { type: 'string', description: 'Environment key name; required for set/remove.' },
         value: { type: 'string', description: 'New value; required for set.' },
         path: { type: 'string', description: 'Target .env path; defaults to the project root .env.' },
@@ -589,6 +670,7 @@ export function apply(ctx, config = {}) {
       const state = await buildState(cwd)
       if (state.projectRoot === null) throw new HttpError(400, 'this session has no workspace directory')
       switch (args.action) {
+        case 'remote': return await remoteEnv()
         case 'list':
         case 'files':
           return {

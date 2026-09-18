@@ -77,8 +77,20 @@ window.__ModuleLoader__.load({
 .secm-ok { margin: 0; font-size: 12px; line-height: 1.55; color: var(--dsw-alias-state-success-primary); overflow-wrap: anywhere; }
 .secm-empty { padding: 20px; font-size: 13px; color: var(--dsw-alias-label-tertiary); text-align: center; border: 0.5px dashed var(--dsw-alias-border-l4); border-radius: 20px; }
 .secm-loading { font-size: 13px; color: var(--dsw-alias-label-tertiary); }
-`
 
+.secm-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.secm-spacer { flex: 1 1 0; }
+.secm-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
+.secm-error { margin: 0; font-size: 12px; line-height: 1.5; color: var(--dsw-alias-state-error-primary); overflow-wrap: anywhere; }
+.secm-remote { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.secm-remote-node { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; box-sizing: border-box; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 16px; }
+.secm-remote-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.secm-remote-files { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.secm-remote-file { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 3px 4px; border-radius: 6px; }
+.secm-remote-file:hover { background: var(--dsw-alias-bg-layer-1); }
+.secm-remote-path { flex: none; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 12px; color: var(--dsw-alias-label-primary); }
+.secm-remote-keys { flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
+`
     async function call(path, init) {
       const response = await fetch(new URL(API + path, location.origin), init)
       const text = await response.text()
@@ -178,6 +190,7 @@ window.__ModuleLoader__.load({
       const [revealed, setRevealed] = React.useState(() => new Set())
       const [draft, setDraft] = React.useState(null)
       const [busy, setBusy] = React.useState(false)
+      const [remote, setRemote] = React.useState({ data: null, error: null })
       const [notice, setNotice] = React.useState(null)
 
       React.useLayoutEffect(() => {
@@ -207,6 +220,14 @@ window.__ModuleLoader__.load({
         }
       }, [cwd])
 
+      const loadRemote = React.useCallback(async () => {
+        try {
+          setRemote({ data: await call('/remote'), error: null })
+        } catch (error) {
+          setRemote({ data: null, error: String(error.message ?? error) })
+        }
+      }, [])
+
       const load = React.useCallback(async (target) => {
         setState(previous => ({ ...previous, loading: true, error: null }))
         try {
@@ -225,6 +246,8 @@ window.__ModuleLoader__.load({
           return null
         }
       }, [loadFile])
+
+      React.useEffect(() => { void loadRemote() }, [loadRemote])
 
       React.useEffect(() => {
         void (async () => {
@@ -447,6 +470,38 @@ window.__ModuleLoader__.load({
               h('ul', { className: 'secm-rows' }, keyRows),
             )
           : null,
+        h('div', { className: 'secm-group' },
+          h('h3', { className: 'secm-group-head' }, '远端节点（DevSpace）'),
+          h('div', { className: 'secm-toolbar' },
+            h('span', { className: 'secm-note' }, '每个节点当前 .env 文件里的键名：扫描节点允许根 + 一级子目录，**只读键名，不读值**。'),
+            h('span', { className: 'secm-spacer' }),
+            h(Button, { size: 'sm', variant: 'outline', disabled: busy, onClick: () => { void loadRemote() } }, '刷新远端'),
+          ),
+          remote.error !== null ? h('p', { className: 'secm-error' }, remote.error) : null,
+          remote.data === null
+            ? h('span', { className: 'secm-loading' }, '读取中…')
+            : remote.data.available === false
+              ? h('p', { className: 'secm-note' }, remote.data.hint ?? '没有可用的远端节点。')
+              : (remote.data.nodes ?? []).length === 0
+                ? h('p', { className: 'secm-note' }, '没有启用的远端节点。')
+                : h('ul', { className: 'secm-remote' }, (remote.data.nodes ?? []).map(node => h('li', { key: node.node, className: 'secm-remote-node' },
+                    h('div', { className: 'secm-remote-head' },
+                      h(Tag, { tone: 'outline' }, node.label.length > 0 ? node.label : node.node),
+                      h('span', { className: 'secm-note' }, `${node.node} · ${node.root} · ${node.state === 'ready' ? '在线' : String(node.state)} · ${node.dialect === 'posix' ? 'bash' : 'PowerShell'}`),
+                      h('span', { className: 'secm-spacer' }),
+                      h('span', { className: 'secm-note' }, `${String((node.files ?? []).length)} 个文件 / ${String(node.keyCount)} 个键`),
+                    ),
+                    (node.errors ?? []).length > 0 ? h('p', { className: 'secm-error' }, node.errors.join('；')) : null,
+                    (node.files ?? []).length === 0
+                      ? h('p', { className: 'secm-note' }, '这个节点的允许根（含一级子目录）里没有 .env。')
+                      : h('ul', { className: 'secm-remote-files' }, (node.files ?? []).map(file => h('li', { key: file.path, className: 'secm-remote-file' },
+                          h('span', { className: 'secm-remote-path' }, file.path),
+                          h('span', { className: 'secm-remote-keys' }, file.keys.length === 0
+                            ? (file.readable ? '（没有键）' : '读不到内容')
+                            : file.keys.join('、')),
+                        ))),
+                  ))),
+        ),
       )
     }
 
@@ -476,6 +531,7 @@ window.__ModuleLoader__.load({
 .secm-insp-chip-active { color: var(--dsw-alias-label-primary); border-color: var(--dsw-alias-brand-primary); background: var(--dsw-alias-bg-layer-1); }
 .secm-insp-input { height: 28px; padding: 0 8px; box-sizing: border-box; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12px; }
 .secm-insp-status { flex: none; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+.secm-insp-sect { margin-top: 2px; font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--dsw-alias-label-secondary); }
 .secm-insp-grow { flex: 1 1 60px; min-width: 60px; }
 .secm-insp-key { flex: 0 1 120px; min-width: 80px; text-transform: uppercase; }
 .secm-insp-pre { margin: 0; padding: 8px 10px; max-height: 180px; overflow: auto; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 10px; background: var(--dsw-alias-bg-base); font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 11px; line-height: 16px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--dsw-alias-label-secondary); }
@@ -560,6 +616,17 @@ window.__ModuleLoader__.load({
       /** The key awaiting a delete confirmation. */
       const [confirming, setConfirming] = React.useState(null)
       const [busy, setBusy] = React.useState(false)
+      const [remote, setRemote] = React.useState(null)
+
+      React.useEffect(() => {
+        void (async () => {
+          try {
+            setRemote(await call('/remote'))
+          } catch {
+            setRemote({ available: false, nodes: [], hint: '远端节点读取失败' })
+          }
+        })()
+      }, [])
 
       const load = React.useCallback(async () => {
         try {
@@ -774,6 +841,17 @@ window.__ModuleLoader__.load({
                       ? h(Button, { size: 'sm', variant: 'outline', disabled: busy, onClick: () => { void createFile() } }, '在仓库根创建 .env')
                       : null,
                   ),
+              remote !== null && remote.available !== false && (remote.nodes ?? []).length > 0
+                ? h('div', null,
+                    h('div', { className: 'secm-insp-sect' }, `远端节点 · ${String((remote.nodes ?? []).length)}`),
+                    h('ul', { className: 'secm-insp-rows' }, (remote.nodes ?? []).map(node => h('li', { key: node.node, className: 'secm-insp-row' },
+                        h('span', { className: 'secm-insp-name' }, node.label.length > 0 ? node.label : node.node),
+                        h('span', { className: 'secm-insp-desc' }, (node.files ?? []).length === 0
+                          ? `${node.node} · 没有 .env`
+                          : `${node.node} · ${String((node.files ?? []).length)} 个 .env · ${(node.files ?? []).flatMap(file => file.keys).slice(0, 5).join('、')}${node.keyCount > 5 ? ' 等' : ''}`),
+                      ))),
+                  )
+                : null,
               h('p', { className: 'secm-insp-note' }, '写入保留注释与顺序；值只在你点「显示」时读出来，也不会进模型上下文。'),
 
             )
