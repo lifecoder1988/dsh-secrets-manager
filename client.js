@@ -600,7 +600,9 @@ window.__ModuleLoader__.load({
 .secm-insp-filecount { flex: none; color: var(--dsw-alias-label-tertiary); }
 /* Chips, not a wrapped text run: a long key can never overlap its neighbour. */
 .secm-insp-keys { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 0; padding: 0 4px; list-style: none; }
-.secm-insp-key { max-width: 100%; padding: 2px 7px; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0.5px solid var(--dsw-border-subtle, var(--dsw-alias-border-l2)); border-radius: 999px; background: var(--dsw-alias-bg-layer-1); font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-primary); }
+.secm-insp-key { max-width: 100%; padding: 2px 7px; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0.5px solid var(--dsw-border-subtle, var(--dsw-alias-border-l2)); border-radius: 999px; background: var(--dsw-alias-bg-layer-1); font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-primary); cursor: pointer; }
+.secm-insp-key:hover { border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+.secm-insp-key:disabled { opacity: .5; cursor: default; }
 .secm-insp-grow { flex: 1 1 60px; min-width: 60px; }
 .secm-insp-key { flex: 0 1 120px; min-width: 80px; text-transform: uppercase; }
 .secm-insp-pre { margin: 0; padding: 8px 10px; max-height: 180px; overflow: auto; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 10px; background: var(--dsw-alias-bg-base); font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 11px; line-height: 16px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--dsw-alias-label-secondary); }
@@ -747,6 +749,21 @@ window.__ModuleLoader__.load({
         }
       }
 
+      /** The same, for a key that lives on a node: read on demand, copy, forget. */
+      const copyRemoteValue = async (node, path, key) => {
+        setBusy(true)
+        try {
+          const answer = await post('/remote-value', { node, path, key })
+          const ok = await copyText(answer.value ?? '')
+          setNotice(ok ? `已复制 ${key} 的值` : `复制 ${key} 失败：浏览器没有剪贴板权限`)
+          setError(null)
+        } catch (failure) {
+          setError(String(failure.message ?? failure))
+        } finally {
+          setBusy(false)
+        }
+      }
+
       /** One write against the picked file, then a fresh read of the index. */
       const write = async (changes, message) => {
         if (picked === null) {
@@ -850,7 +867,7 @@ window.__ModuleLoader__.load({
                 ? h('p', { className: 'secm-insp-note' }, '读取中…')
                 : h(React.Fragment, null,
                     files.length === 0
-                      ? h('p', { className: 'secm-insp-note' }, '这个仓库里还没有 .env 文件。')
+                      ? h('p', { className: 'secm-insp-note' }, '本地这个仓库里还没有 .env；远端节点的键可以展开后点键名复制值。')
                       : h('div', { className: 'secm-insp-strip' }, files.map(file => h('button', {
                           key: file.path,
                           type: 'button',
@@ -980,7 +997,19 @@ window.__ModuleLoader__.load({
                                 fileOpen
                                   ? (file.keys.length === 0
                                       ? h('p', { className: 'secm-insp-note' }, file.readable ? '（没有键）' : '读不到内容')
-                                      : h('ul', { className: 'secm-insp-keys' }, file.keys.map(key => h('li', { key, className: 'secm-insp-key' }, key))))
+                                      : h(React.Fragment, null,
+                                          h('p', { className: 'secm-insp-note' }, '点键名即复制它的值（值不会显示在这里）。'),
+                                          h('ul', { className: 'secm-insp-keys' }, file.keys.map(key => h('li', { key },
+                                              h('button', {
+                                                type: 'button',
+                                                className: 'secm-insp-key',
+                                                'data-secm-copy-remote': `${file.path}:${key}`,
+                                                title: `复制 ${key} 的值`,
+                                                disabled: busy,
+                                                onClick: () => { void copyRemoteValue(node.node, file.path, key) },
+                                              }, key),
+                                            ))),
+                                        ))
                                   : null,
                               )
                             }))
@@ -1060,6 +1089,7 @@ window.__ModuleLoader__.load({
                       text: panel.textContent.replace(/\s+/g, ' ').trim().slice(0, 400),
                       rows: panel.querySelectorAll('.secm-insp-row').length,
                       remoteKeys: panel.querySelectorAll('.secm-insp-keys .secm-insp-key').length,
+                      remoteCopyButtons: panel.querySelectorAll('[data-secm-copy-remote]').length,
                       remoteFiles: panel.querySelectorAll('.secm-insp-filerow').length,
                       inputs: panel.querySelectorAll('input').length,
                     }

@@ -103,6 +103,21 @@ async function hit(routes, url) {
 
 const checks = []
 const check = (label, condition, detail) => checks.push({ label, ok: condition === true, detail })
+
+/** One POST into the plugin's own routes. */
+async function post(routes, url, body) {
+  const handler = routes[0].handler
+  const req = {
+    method: 'POST',
+    url,
+    headers: {},
+    async *[Symbol.asyncIterator]() { yield Buffer.from(JSON.stringify(body)) },
+  }
+  let payload = ''
+  const res = { statusCode: 200, setHeader() {}, end(chunk) { payload = chunk === undefined ? '' : String(chunk) } }
+  await handler(req, res)
+  return { status: res.statusCode, json: payload.length === 0 ? null : JSON.parse(payload) }
+}
 const report = () => {
   for (const item of checks) console.log(`${item.ok ? 'PASS' : 'FAIL'}  ${item.label}${item.ok ? '' : `  ${JSON.stringify(item.detail)}`}`)
   console.log(`\n${String(checks.filter(item => item.ok).length)}/${String(checks.length)} passed`)
@@ -128,6 +143,20 @@ const absent = makeContext(undefined)
 apply(absent.ctx, { dshHome: '/tmp/secrets-home' })
 const degraded = await hit(absent.routes, '/secrets-manager/remote')
 check('a harness without devspace degrades to available:false', degraded.json?.available === false, degraded.json)
+
+// ---- reading one remote value on demand ------------------------------------
+{
+  const local = makeContext(fakeDevspace())
+  apply(local.ctx, {})
+  const answer = await post(local.routes, '/secrets-manager/remote-value', { node: 'node-a', path: '~/.env', key: 'HOME_KEY' })
+  check('a remote value can be read by name', answer.status === 200 && answer.json?.value === 'secret-home', answer.json)
+
+  const missing = await post(local.routes, '/secrets-manager/remote-value', { node: 'node-a', path: '~/.env', key: 'NOPE' })
+  check('an unknown key is refused', missing.status === 404, missing.json)
+
+  const incomplete = await post(local.routes, '/secrets-manager/remote-value', { node: 'node-a', key: 'HOME_KEY' })
+  check('an incomplete request is refused', incomplete.status === 400, incomplete.json)
+}
 
 // ---- scoping: only the node this workspace mirrors --------------------------
 {

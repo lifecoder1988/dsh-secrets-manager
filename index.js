@@ -560,6 +560,26 @@ export function apply(ctx, config = {}) {
     }
   }
 
+  /**
+   * One key's value from a remote node, read on demand. The value is returned
+   * to the caller for the clipboard only — no listing ever carries it — and the
+   * request names exactly one node, one file and one key.
+   */
+  const remoteValue = async (input) => {
+    const devspace = devspaceService()
+    if (devspace === null) throw new HttpError(409, '这个 harness 没有 DevSpace 服务，读不到远端值')
+    const node = String(input?.node ?? '')
+    const path = String(input?.path ?? '')
+    const key = String(input?.key ?? '')
+    if (node.length === 0 || path.length === 0 || key.length === 0) {
+      throw new HttpError(400, '需要 node、path 与 key')
+    }
+    const text = await devspace.readText(node, path, 256 * 1024)
+    const entry = parseEnvFile(text).entries.find(item => item.key === key)
+    if (entry === undefined) throw new HttpError(404, `远端 ${path} 里没有 ${key}`)
+    return { node, path, key, value: entry.value }
+  }
+
   // ---- state and routes --------------------------------------------
 
   /** Everything the Settings page needs for one workspace. */
@@ -699,6 +719,7 @@ export function apply(ctx, config = {}) {
       }
       if (req.method === 'POST') {
         const body = await readJsonBody(req)
+        if (route === '/remote-value') return void sendJson(res, 200, await remoteValue(body))
         if (route === '/file') return void sendJson(res, 200, await readFileEntries(body))
         if (route === '/write') return void sendJson(res, 200, await writeEntries(body))
         if (route === '/refresh') {
