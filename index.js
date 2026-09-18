@@ -503,7 +503,7 @@ export function apply(ctx, config = {}) {
           return []
         }
         const candidates = entries.filter(item => REMOTE_ENV_PATTERN.test(item.name))
-        const read = await mapLimit(candidates, 6, async (entry) => {
+        const read = await mapLimit(candidates, 8, async (entry) => {
           const path = dir === '' ? entry.name : `${dir}/${entry.name}`
           const keys = await readRemoteKeys(devspace, node.name, path)
           return { path, entry, keys }
@@ -532,7 +532,13 @@ export function apply(ctx, config = {}) {
           }
           continue
         }
-        for (const entry of dirs.slice(0, 20)) await collect(base === '' ? entry.name : `${base}/${entry.name}`, base === '' ? entry.name : `${base}/${entry.name}`)
+        // One level down, capped: every subdirectory costs a listing round trip,
+        // and a node root can hold dozens of them. The project base gets the
+        // widest budget because that is the tree a reader cares about.
+        const isProject = base.length > 0 && base !== '~'
+        for (const entry of dirs.slice(0, isProject ? 12 : 6)) {
+          await collect(base === '' ? entry.name : `${base}/${entry.name}`, base === '' ? entry.name : `${base}/${entry.name}`)
+        }
       }
       listed.push({
         node: node.name,

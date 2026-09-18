@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
   id: '@local/dsh-secrets-manager',
   factory(require) {
     const React = require('react')
-    const { Button, Input, Tag, Pill, IconShieldOutline16 } = require('@deepseek-ai/dsh-client-ui-primitives')
+    const { Button, Input, Tag, Pill, IconShieldOutline16, IconChevronRightOutline14 } = require('@deepseek-ai/dsh-client-ui-primitives')
     const h = React.createElement
     const API = '/secrets-manager'
 
@@ -592,9 +592,15 @@ window.__ModuleLoader__.load({
 .secm-insp-actions { flex: none; display: flex; align-items: center; gap: 2px; }
 .secm-insp-remote { display: flex; flex-direction: column; gap: 6px; padding: 6px 6px 8px; max-height: 280px; overflow: auto; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 10px; background: var(--dsw-alias-bg-base); }
 .secm-insp-alltitle { font-size: 11px; font-weight: 600; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
-.secm-insp-file { display: flex; flex-direction: column; gap: 2px; }
-.secm-insp-keys { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 0; padding: 0; list-style: none; }
-.secm-insp-key { font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 12px; color: var(--dsw-alias-label-primary); }
+.secm-insp-file { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.secm-insp-filerow { display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0; padding: 3px 4px; box-sizing: border-box; border: none; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-secondary); font-family: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.secm-insp-filerow:hover { background: var(--dsw-alias-bg-layer-1); }
+.secm-insp-caret { flex: none; color: var(--dsw-alias-label-tertiary); transition: transform .12s; }
+.secm-insp-filename { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); color: var(--dsw-alias-label-primary); }
+.secm-insp-filecount { flex: none; color: var(--dsw-alias-label-tertiary); }
+/* Chips, not a wrapped text run: a long key can never overlap its neighbour. */
+.secm-insp-keys { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 0; padding: 0 4px; list-style: none; }
+.secm-insp-key { max-width: 100%; padding: 2px 7px; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0.5px solid var(--dsw-border-subtle, var(--dsw-alias-border-l2)); border-radius: 999px; background: var(--dsw-alias-bg-layer-1); font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-primary); }
 .secm-insp-grow { flex: 1 1 60px; min-width: 60px; }
 .secm-insp-key { flex: 0 1 120px; min-width: 80px; text-transform: uppercase; }
 .secm-insp-pre { margin: 0; padding: 8px 10px; max-height: 180px; overflow: auto; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 10px; background: var(--dsw-alias-bg-base); font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 11px; line-height: 16px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--dsw-alias-label-secondary); }
@@ -681,6 +687,7 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState(false)
       const [remote, setRemote] = React.useState(null)
       const [expandedRemote, setExpandedRemote] = React.useState(null)
+      const [openRemoteFile, setOpenRemoteFile] = React.useState(null)
 
       const [showAllRemote, setShowAllRemote] = React.useState(false)
       React.useEffect(() => {
@@ -955,12 +962,28 @@ window.__ModuleLoader__.load({
                           ),
                         ),
                         expandedRemote === node.node && (node.files ?? []).length > 0
-                          ? h('div', { className: 'secm-insp-remote' }, (node.files ?? []).map(file => h('div', { key: file.path, className: 'secm-insp-file' },
-                              h('div', { className: 'secm-insp-alltitle' }, `${file.nodePath ?? file.path}　${String(file.keys.length)} 个键`),
-                              file.keys.length === 0
-                                ? h('p', { className: 'secm-insp-note' }, file.readable ? '（没有键）' : '读不到内容')
-                                : h('ul', { className: 'secm-insp-keys' }, file.keys.map(key => h('li', { key, className: 'secm-insp-key' }, key))),
-                            )))
+                          ? h('div', { className: 'secm-insp-remote' }, (node.files ?? []).map((file) => {
+                              const fileOpen = openRemoteFile === file.path
+                              return h('div', { key: file.path, className: 'secm-insp-file' },
+                                h('button', {
+                                  type: 'button',
+                                  className: 'secm-insp-filerow',
+                                  'data-secm-file': file.path,
+                                  'aria-expanded': fileOpen,
+                                  title: file.nodePath ?? file.path,
+                                  onClick: () => setOpenRemoteFile(current => (current === file.path ? null : file.path)),
+                                },
+                                  h(IconChevronRightOutline14, { size: 12, className: 'secm-insp-caret', style: { transform: fileOpen ? 'rotate(90deg)' : 'none' } }),
+                                  h('span', { className: 'secm-insp-filename' }, file.nodePath ?? file.path),
+                                  h('span', { className: 'secm-insp-filecount' }, `${String(file.keys.length)} 个键`),
+                                ),
+                                fileOpen
+                                  ? (file.keys.length === 0
+                                      ? h('p', { className: 'secm-insp-note' }, file.readable ? '（没有键）' : '读不到内容')
+                                      : h('ul', { className: 'secm-insp-keys' }, file.keys.map(key => h('li', { key, className: 'secm-insp-key' }, key))))
+                                  : null,
+                              )
+                            }))
                           : null,
                       ))),
                   )
@@ -1037,6 +1060,7 @@ window.__ModuleLoader__.load({
                       text: panel.textContent.replace(/\s+/g, ' ').trim().slice(0, 400),
                       rows: panel.querySelectorAll('.secm-insp-row').length,
                       remoteKeys: panel.querySelectorAll('.secm-insp-keys .secm-insp-key').length,
+                      remoteFiles: panel.querySelectorAll('.secm-insp-filerow').length,
                       inputs: panel.querySelectorAll('input').length,
                     }
                   })(),
