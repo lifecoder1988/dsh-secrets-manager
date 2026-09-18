@@ -485,7 +485,10 @@ export function apply(ctx, config = {}) {
           const path = dir === '' ? entry.name : `${dir}/${entry.name}`
           const keys = await readRemoteKeys(devspace, node.name, path)
           if (files.some(file => file.path === path)) return
-          files.push({ path, base: label, bytes: entry.bytes, keys: keys ?? [], readable: keys !== null })
+          const nodePath = path.startsWith('~/')
+            ? path
+            : `${String(node.root).replace(/[\\/]+$/, '')}/${path}`
+          files.push({ path, base: label, nodePath, bytes: entry.bytes, keys: keys ?? [], readable: keys !== null })
         }
       }
       for (const base of bases) {

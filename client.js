@@ -476,10 +476,8 @@ window.__ModuleLoader__.load({
           : null,
         h('div', { className: 'secm-group' },
           h('h3', { className: 'secm-group-head' }, '远端节点（DevSpace）'),
-          remote.data !== null && remote.data.scoped !== null
-            ? h('p', { className: 'secm-note' }, showAllRemote
-                ? `当前工作区镜像的是 ${remote.data.scoped.label.length > 0 ? remote.data.scoped.label : remote.data.scoped.node}（${remote.data.scoped.node}）· 现在显示全部节点`
-                : `只看当前工作区镜像的节点：${remote.data.scoped.label.length > 0 ? remote.data.scoped.label : remote.data.scoped.node}（${remote.data.scoped.node}）`) 
+          remote.data != null && remote.data.scoped != null
+            ? h('p', { className: 'secm-note' }, `${showAllRemote ? '现在显示全部节点' : '只看当前工作区镜像的节点'}：${remote.data.scoped.label.length > 0 ? remote.data.scoped.label : remote.data.scoped.node}（${remote.data.scoped.node}）· 远端 ${remote.data.scoped.remotePath} · 本地 ${remote.data.scoped.localPath}`)
             : null,
           h('div', { className: 'secm-toolbar' },
             h('span', { className: 'secm-note' }, '每个节点当前 .env 文件里的键名：扫描节点允许根 + 一级子目录，**只读键名，不读值**。'),
@@ -510,7 +508,7 @@ window.__ModuleLoader__.load({
                     (node.files ?? []).length === 0
                       ? h('p', { className: 'secm-note' }, '这个节点的允许根（含一级子目录）里没有 .env。')
                       : h('ul', { className: 'secm-remote-files' }, (node.files ?? []).map(file => h('li', { key: file.path, className: 'secm-remote-file' },
-                          h('span', { className: 'secm-remote-path' }, file.path),
+                          h('span', { className: 'secm-remote-path' }, file.nodePath ?? file.path),
                           h('span', { className: 'secm-remote-keys' }, file.keys.length === 0
                             ? (file.readable ? '（没有键）' : '读不到内容')
                             : file.keys.join('、')),
@@ -872,8 +870,8 @@ window.__ModuleLoader__.load({
                           }, showAllRemote ? '只看当前节点' : '显示全部节点')
                         : null,
                     ),
-                    remote.scoped !== null && !showAllRemote
-                      ? h('p', { className: 'secm-insp-note' }, `当前工作区镜像的是 ${remote.scoped.label.length > 0 ? remote.scoped.label : remote.scoped.node}（${remote.scoped.node}）`)
+                    remote.scoped != null && !showAllRemote
+                      ? h('p', { className: 'mcpm-insp-note' }, `当前工作区镜像的是 ${remote.scoped.label.length > 0 ? remote.scoped.label : remote.scoped.node}（${remote.scoped.node}）· 远端 ${remote.scoped.remotePath}`)
                       : null,
                     h('ul', { className: 'secm-insp-rows' }, (remote.nodes ?? []).map(node => h('li', { key: node.node, className: 'secm-insp-row' },
                         h('span', { className: 'secm-insp-name' }, node.label.length > 0 ? node.label : node.node),
