@@ -464,11 +464,15 @@ export function apply(ctx, config = {}) {
     const all = await devspace.nodes()
     const scope = input.all === true ? null : await scopedMirror(devspace, input.cwd)
     const nodes = scope === null ? all : all.filter(node => node.name === scope.node)
+    // The mirrored project first, then the node's root, then its HOME.
+    const relative = typeof scope?.relative === 'string' ? scope.relative : ''
+    const bases = []
+    for (const base of [relative, '', '~']) if (!bases.includes(base)) bases.push(base)
     const listed = []
     for (const node of nodes) {
       const files = []
       const errors = []
-      const collect = async (dir) => {
+      const collect = async (dir, label) => {
         let entries = []
         try {
           const listing = await devspace.listFiles(node.name, dir)
@@ -480,17 +484,24 @@ export function apply(ctx, config = {}) {
         for (const entry of entries.filter(item => REMOTE_ENV_PATTERN.test(item.name))) {
           const path = dir === '' ? entry.name : `${dir}/${entry.name}`
           const keys = await readRemoteKeys(devspace, node.name, path)
-          files.push({ path, bytes: entry.bytes, keys: keys ?? [], readable: keys !== null })
+          if (files.some(file => file.path === path)) return
+          files.push({ path, base: label, bytes: entry.bytes, keys: keys ?? [], readable: keys !== null })
         }
       }
-      await collect('')
-      let dirs = []
-      try {
-        dirs = (await devspace.listDirs(node.name, '')).filter(entry => entry.hidden !== true)
-      } catch (error) {
-        errors.push(`.: ${messageOf(error)}`)
+      for (const base of bases) {
+        await collect(base, base === '' ? '.' : base)
+        let dirs = []
+        try {
+          dirs = (await devspace.listDirs(node.name, base)).filter(entry => entry.hidden !== true)
+        } catch (error) {
+          // A base the node does not have is the normal case, not an error.
+          if (!/没有这个文件|no such|not exist|找不到|Cannot find|502/.test(messageOf(error))) {
+            errors.push(`${base === '' ? '.' : base}: ${messageOf(error)}`)
+          }
+          continue
+        }
+        for (const entry of dirs.slice(0, 20)) await collect(base === '' ? entry.name : `${base}/${entry.name}`, base === '' ? entry.name : `${base}/${entry.name}`)
       }
-      for (const entry of dirs.slice(0, 20)) await collect(entry.name)
       listed.push({
         node: node.name,
         label: node.label,

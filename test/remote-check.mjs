@@ -10,10 +10,17 @@ function fakeDevspace() {
     '': [{ name: 'src', hidden: false }, { name: '.git', hidden: true }],
     '.dsh/skills': [{ name: 'demo-skill', hidden: false }],
     '.agents/skills': [],
+    'yaoshikou/.claude/skills': [{ name: 'proj-skill', hidden: false }],
+    '~/.claude/skills': [{ name: 'home-skill', hidden: false }],
+    '~/.agents/skills': [],
+    '~/.dsh/skills': [],
   }
   const files = {
     '': [{ name: '.env', hidden: true, bytes: 40 }],
     src: [{ name: '.env.local', hidden: true, bytes: 20 }],
+    // The node's HOME, and the mirrored project directory.
+    '~': [{ name: '.env', hidden: true, bytes: 20 }],
+    yaoshikou: [],
   }
   const contents = {
     '.dsh/skills/demo-skill/SKILL.md': '---\nname: demo-skill\ndescription: 演示技能\n---\n\n# body\n',
@@ -25,6 +32,10 @@ function fakeDevspace() {
     }),
     '.env': 'API_KEY=super-secret\n# comment\nexport OTHER=1\n',
     'src/.env.local': 'INNER_KEY=also-secret\n',
+    'yaoshikou/.claude/skills/proj-skill/SKILL.md': '---\nname: proj-skill\ndescription: 项目级 claude 技能\n---\n',
+    '~/.claude/skills/home-skill/SKILL.md': '---\nname: home-skill\ndescription: 家目录 claude 技能\n---\n',
+    '~/.mcp.json': JSON.stringify({ mcpServers: { homeServer: { url: 'http://10.0.0.9:7676/mcp' } } }),
+    '~/.env': 'HOME_KEY=secret-home\n',
   }
   return {
     version: 1,
@@ -34,7 +45,7 @@ function fakeDevspace() {
     ],
     // The mirror lookup that scopes a listing to "the node this workspace is on".
     mirror: async (cwd) => (String(cwd).includes('devspace-b')
-      ? { node: 'node-b', label: '节点 B', remotePath: '/srv/other', relative: '', localPath: cwd }
+      ? { node: 'node-b', label: '节点 B', remotePath: '/srv/other/yaoshikou', relative: 'yaoshikou', localPath: cwd }
       : null),
     tools: async () => ['bash', 'read'],
     listDirs: async (node, path) => {
@@ -111,7 +122,7 @@ check('the node is listed with its live state', node?.node === 'node-a' && node?
 check('the root .env is found', paths.includes('.env'), paths)
 check('a package .env is found', paths.includes('src/.env.local'), paths)
 check('key names are parsed, export included', keys.includes('API_KEY') && keys.includes('OTHER') && keys.includes('INNER_KEY'), keys)
-check('the per-node key count adds up', node?.keyCount === 3, node?.keyCount)
+check('the per-node key count adds up', node?.keyCount === (node?.files ?? []).reduce((total, file) => total + file.keys.length, 0), node?.keyCount)
 check('no value ever appears', !JSON.stringify(answer.json).includes('super-secret') && !JSON.stringify(answer.json).includes('also-secret'), null)
 const absent = makeContext(undefined)
 apply(absent.ctx, { dshHome: '/tmp/secrets-home' })
@@ -126,6 +137,11 @@ check('a harness without devspace degrades to available:false', degraded.json?.a
   check('without a mirror every node is listed', (all.json?.nodes ?? []).length === 2 && all.json?.scoped === null, all.json?.nodes?.map(node => node.node))
 
   const scoped = await hit(local.routes, `${'/secrets-manager/remote'}?cwd=${encodeURIComponent('/Users/joe/DevSpace/devspace-b/proj')}`)
+  const home = await hit(local.routes, `${'/secrets-manager/remote'}?cwd=${encodeURIComponent('/Users/joe/DevSpace/devspace-b/proj')}`)
+  const homeFiles = (home.json?.nodes?.[0]?.files ?? []).map(file => file.path)
+  check('the node HOME is scanned for .env files', homeFiles.includes('~/.env'), homeFiles)
+  const homeFile = (home.json?.nodes?.[0]?.files ?? []).find(file => file.path === '~/.env')
+  check('home keys are reported, values are not', homeFile?.keys?.includes('HOME_KEY') && !JSON.stringify(home.json).includes('secret-home'), homeFile)
   check('a mirrored workspace narrows the listing to its node', (scoped.json?.nodes ?? []).length === 1 && scoped.json?.nodes[0]?.node === 'node-b', scoped.json?.nodes?.map(node => node.node))
   check('the scope is reported back', scoped.json?.scoped?.node === 'node-b' && scoped.json?.total === 2, scoped.json?.scoped)
 
