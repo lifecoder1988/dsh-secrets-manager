@@ -34,7 +34,11 @@ window.__ModuleLoader__.load({
 .secm-facts { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 12px; background: var(--dsw-alias-bg-layer-1); }
 .secm-mono { font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 11px; line-height: 17px; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
 .secm-group { display: flex; flex-direction: column; gap: 10px; }
-.secm-group-head { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--dsw-alias-label-tertiary); }
+.secm-group-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.secm-group-title { flex: none; margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--dsw-alias-label-tertiary); }
+.secm-group-count { flex: none; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+/* A file path is not a label: it stays cased and ellipsizes instead of wrapping. */
+.secm-group-path { flex: 1 1 auto; min-width: 0; overflow: hidden; font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 11px; line-height: 17px; color: var(--dsw-alias-label-tertiary); text-overflow: ellipsis; white-space: nowrap; }
 .secm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(224px, 1fr)); grid-auto-rows: 1fr; gap: 12px; margin: 0; padding: 0; list-style: none; }
 .secm-card { display: flex; flex-direction: column; background: transparent; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 20px; transition: border-color .16s, background .16s; }
 .secm-card:hover:not(.secm-card-active) { background: var(--dsw-alias-interactive-bg-hover); }
@@ -44,19 +48,22 @@ window.__ModuleLoader__.load({
 .secm-card-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .secm-card-name { min-width: 0; overflow: hidden; font-size: 14px; font-weight: 600; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
 .secm-card-desc { font-size: 12px; line-height: 1.55; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
+.secm-card-owner { font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 11px; line-height: 17px; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
 .secm-card-id { margin-top: auto; font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 11px; line-height: 17px; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
 .secm-rows { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.secm-row { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 7px 10px; border-radius: 8px; }
+.secm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; padding: 7px 10px; border-radius: 8px; }
 .secm-row:hover { background: var(--dsw-alias-bg-layer-1); }
+/* A revealed value owns the row's second line: it must not squeeze the key or
+   the actions, and a long secret has to wrap rather than scroll away. */
+.secm-row-value { order: 9; flex: 1 0 100%; margin-top: 2px; padding: 6px 8px; box-sizing: border-box; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 8px; background: var(--dsw-alias-bg-base); font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 12px; line-height: 17px; color: var(--dsw-alias-label-primary); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.secm-iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-secondary); cursor: pointer; }
+.secm-iconbtn:hover:not(:disabled) { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+.secm-iconbtn:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: -1px; }
+.secm-iconbtn:disabled { opacity: .4; cursor: default; }
+.secm-iconbtn-on { color: var(--dsw-alias-brand-primary); }
 .secm-key { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 12px; }
 .secm-value { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 12px; color: var(--dsw-alias-label-secondary); }
 .secm-row-actions { flex: none; display: flex; align-items: center; gap: 2px; }
-.secm-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 100%; min-height: 120px; padding: 16px; box-sizing: border-box; appearance: none; cursor: pointer; font: inherit; text-align: center; color: var(--dsw-alias-label-tertiary); background: transparent; border: 0.5px dashed var(--dsw-alias-border-l2); border-radius: 20px; transition: border-color .16s, background .16s, color .16s; }
-.secm-add:hover { color: var(--dsw-alias-label-primary); border-color: var(--dsw-alias-brand-primary); background: var(--dsw-alias-interactive-bg-hover); }
-.secm-add:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: -2px; }
-.secm-add-plus { font-size: 22px; line-height: 1; }
-.secm-add-label { font-size: 14px; font-weight: 600; color: currentColor; }
-.secm-add-hint { font-size: 12px; line-height: 1.5; }
 .secm-form-item { grid-column: 1 / -1; min-width: 0; list-style: none; }
 .secm-add-row { display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; padding: 8px 10px; border: 0.5px dashed var(--dsw-alias-border-l2); border-radius: 8px; background: transparent; color: var(--dsw-alias-label-tertiary); cursor: pointer; font: inherit; font-size: 12px; text-align: left; }
 .secm-add-row:hover { color: var(--dsw-alias-label-primary); border-color: var(--dsw-alias-brand-primary); background: var(--dsw-alias-interactive-bg-hover); }
@@ -75,13 +82,11 @@ window.__ModuleLoader__.load({
 .secm-note { margin: 0; font-size: 12px; line-height: 1.55; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
 .secm-error { margin: 0; font-size: 12px; line-height: 1.55; color: var(--dsw-alias-state-error-primary); white-space: pre-wrap; overflow-wrap: anywhere; }
 .secm-ok { margin: 0; font-size: 12px; line-height: 1.55; color: var(--dsw-alias-state-success-primary); overflow-wrap: anywhere; }
-.secm-empty { padding: 20px; font-size: 13px; color: var(--dsw-alias-label-tertiary); text-align: center; border: 0.5px dashed var(--dsw-alias-border-l4); border-radius: 20px; }
+.secm-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px 18px; border: 0.5px dashed var(--dsw-alias-border-l2); border-radius: 16px; background: var(--dsw-alias-bg-layer-1); }
+.secm-empty-title { margin: 0; font-size: 14px; font-weight: 600; }
+.secm-empty-hint { margin: 0; font-size: 12px; line-height: 1.55; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
 .secm-loading { font-size: 13px; color: var(--dsw-alias-label-tertiary); }
 
-.secm-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.secm-spacer { flex: 1 1 0; }
-.secm-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
-.secm-error { margin: 0; font-size: 12px; line-height: 1.5; color: var(--dsw-alias-state-error-primary); overflow-wrap: anywhere; }
 .secm-remote { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .secm-remote-node { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; box-sizing: border-box; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 16px; }
 .secm-remote-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
@@ -144,6 +149,42 @@ window.__ModuleLoader__.load({
 
     const mask = value => (value.length === 0 ? '(空)' : '•'.repeat(Math.min(12, Math.max(6, value.length))))
 
+    /**
+     * A remote scan runs several commands per node and takes seconds, so a
+     * recent answer is reused rather than re-scanned on every visit.
+     */
+    const REMOTE_TTL_MS = 60_000
+    const remoteCache = new Map()
+
+    /**
+     * Key names inline on a card: a file with 40 keys must not push every other
+     * card out of sight, so the tail collapses into a count.
+     */
+    function summarizeKeys(keys, limit = 6) {
+      if (keys.length === 0) return '(空)'
+      return keys.length <= limit
+        ? keys.join(', ')
+        : `${keys.slice(0, limit).join(', ')} 等 ${String(keys.length)} 个`
+    }
+
+    /**
+     * The reveal ("eye") glyph. ui-primitives ships no eye icon, and this plugin
+     * lives outside the harness repo, so the glyph is local instead of a library
+     * import that would need `build:lib:client` + `build:web` to appear.
+     */
+    function EyeGlyph({ off = false, size = 14 }) {
+      return h('svg', {
+        width: size, height: size, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': 'true', focusable: 'false',
+      },
+        h('path', {
+          d: 'M1.7 8s2.5-4.3 6.3-4.3S14.3 8 14.3 8s-2.5 4.3-6.3 4.3S1.7 8 1.7 8Z',
+          stroke: 'currentColor', strokeWidth: 1.3, strokeLinejoin: 'round',
+        }),
+        h('circle', { cx: 8, cy: 8, r: 1.85, stroke: 'currentColor', strokeWidth: 1.3 }),
+        off ? h('path', { d: 'M3.1 13.1 12.9 2.9', stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round' }) : null,
+      )
+    }
+
     /* -------------------- layout self-check (read-only) -------------------- */
 
     const captured = []
@@ -151,7 +192,7 @@ window.__ModuleLoader__.load({
     function recordReport(report) {
       const signature = [
         report.section.width, report.section.height,
-        report.fileCount, report.keyCount, report.formOpen, report.offenderCount,
+        report.fileCount, report.keyCount, report.formOpen, report.offenders.length,
         report.sectionChildren.length, report.container?.horizontalOverflow,
       ].join(':')
       if (captured[0]?.signature === signature) return
@@ -204,8 +245,7 @@ window.__ModuleLoader__.load({
         fileCount: section.querySelectorAll('.secm-card').length,
         keyCount: section.querySelectorAll('.secm-row').length,
         formOpen: section.querySelector('.secm-editor') !== null,
-        addTileVisible: section.querySelector('.secm-add') !== null,
-        offenderCount: offenders.length,
+        emptyState: section.querySelector('.secm-empty') !== null,
         offenders: offenders.slice(0, 10),
       }
     }
@@ -215,10 +255,12 @@ window.__ModuleLoader__.load({
     function Page() {
       const rootRef = React.useRef(null)
       const formRef = React.useRef(null)
+      const keysRef = React.useRef(null)
       const [state, setState] = React.useState({ loading: true, error: null, data: null })
       const [cwd, setCwd] = React.useState(null)
       const [selected, setSelected] = React.useState(null)
       const [entries, setEntries] = React.useState([])
+      /** Key names whose value the operator asked to see. Never persisted. */
       const [revealed, setRevealed] = React.useState(() => new Set())
       const [draft, setDraft] = React.useState(null)
       const [busy, setBusy] = React.useState(false)
@@ -236,33 +278,71 @@ window.__ModuleLoader__.load({
         return () => { observer.disconnect() }
       }, [])
 
-      const files = (state.data?.packages ?? []).flatMap(pkg => pkg.files.map(file => ({ ...file, packageRelative: pkg.relative })))
+      // The global layer leads: it is the one file every project sources first.
+      const globalFiles = state.data?.global == null
+        ? []
+        : [{
+            path: state.data.global.path,
+            name: '.env',
+            relative: '.env',
+            packageRelative: '全局 $DSH_HOME',
+            keys: state.data.global.keys ?? [],
+            global: true,
+            missing: state.data.global.exists !== true,
+          }]
+      const projectFiles = (state.data?.packages ?? []).flatMap(pkg => pkg.files.map(file => ({ ...file, packageRelative: pkg.relative })))
+      const files = [...globalFiles, ...projectFiles]
 
       const loadFile = React.useCallback(async (target) => {
         if (target === null) {
           setEntries([])
+          setRevealed(new Set())
           return
         }
         try {
           const file = await post('/file', { cwd, path: target })
           setEntries(file.entries)
+          // Reveals belong to the file that was on screen, not to the key name.
+          setRevealed(new Set())
         } catch (error) {
           setEntries([])
+          setRevealed(new Set())
           setNotice({ kind: 'error', text: String(error.message ?? error) })
         }
       }, [cwd])
 
-      const [showAllRemote, setShowAllRemote] = React.useState(false)
+      /** Remote discovery follows the selected workspace: only a mirror has one. */
+      const [remoteBusy, setRemoteBusy] = React.useState(false)
+      /** Identifies the newest remote request: a slow answer for a workspace you
+       *  already left must not land on the one you are looking at. */
+      const remoteSeq = React.useRef(0)
       const loadRemote = React.useCallback(async () => {
+        const seq = remoteSeq.current + 1
+        remoteSeq.current = seq
+        const key = `${cwd ?? ''}|scoped`
+        const cached = remoteCache.get(key)
+        if (cached !== undefined && Date.now() - cached.at < REMOTE_TTL_MS) {
+          setRemote({ data: cached.data, error: null })
+          return
+        }
+        setRemoteBusy(true)
         try {
           const params = []
           if (cwd !== null && cwd !== undefined && cwd !== '') params.push(`cwd=${encodeURIComponent(cwd)}`)
-          if (showAllRemote) params.push('all=1')
-          setRemote({ data: await call(`/remote${params.length === 0 ? '' : `?${params.join('&')}`}`), error: null })
+          const data = await call(`/remote${params.length === 0 ? '' : `?${params.join('&')}`}`)
+          remoteCache.set(key, { at: Date.now(), data })
+          if (seq !== remoteSeq.current) return
+          setRemote({ data, error: null })
         } catch (error) {
+          if (seq !== remoteSeq.current) return
           setRemote({ data: null, error: String(error.message ?? error) })
+        } finally {
+          if (seq === remoteSeq.current) setRemoteBusy(false)
         }
-      }, [cwd, showAllRemote])
+      }, [cwd])
+      // A local workspace answers instantly (the Host skips the node scan); a
+      // mirror pays for the one node it is about.
+      React.useEffect(() => { void loadRemote() }, [loadRemote])
 
       const load = React.useCallback(async (target) => {
         setState(previous => ({ ...previous, loading: true, error: null }))
@@ -270,7 +350,11 @@ window.__ModuleLoader__.load({
           const query = target ? `?cwd=${encodeURIComponent(target)}` : ''
           const data = await call(`/state${query}`)
           setState({ loading: false, error: null, data })
-          const all = (data.packages ?? []).flatMap(pkg => pkg.files.map(file => file.path))
+          // Read from the fetched payload, not the render-scope list: this
+          // callback closes over the previous render's state otherwise.
+          const projectPaths = (data.packages ?? []).flatMap(pkg => pkg.files.map(file => file.path))
+          const globalPath = typeof data.global?.path === 'string' ? data.global.path : null
+          const all = globalPath === null ? projectPaths : [...projectPaths, globalPath]
           const preferred = data.shell.DSH_ENV_FILE !== '' && all.includes(data.shell.DSH_ENV_FILE)
             ? data.shell.DSH_ENV_FILE
             : all[0] ?? null
@@ -282,8 +366,6 @@ window.__ModuleLoader__.load({
           return null
         }
       }, [loadFile])
-
-      React.useEffect(() => { void loadRemote() }, [loadRemote])
 
       React.useEffect(() => {
         void (async () => {
@@ -304,6 +386,25 @@ window.__ModuleLoader__.load({
         if (field !== null) field.focus()
       }, [formKey])
 
+      // Success notices are confirmations, not state: they fade on their own.
+      // Errors stay until the next action, because the user has to read them.
+      React.useEffect(() => {
+        if (notice === null || notice.kind !== 'ok') return undefined
+        const timer = window.setTimeout(() => { setNotice(null) }, 5000)
+        return () => { window.clearTimeout(timer) }
+      }, [notice])
+
+      // The key list sits below the file grid, so picking a card has to bring it
+      // into view. `nearest` leaves an already-visible list where it is, and the
+      // flag keeps this from firing on the initial auto-selection.
+      const revealKeys = React.useRef(false)
+      React.useEffect(() => {
+        if (!revealKeys.current) return
+        revealKeys.current = false
+        const node = keysRef.current
+        if (node !== null) node.scrollIntoView({ block: 'nearest' })
+      }, [selected, entries])
+
       const write = React.useCallback(async (changes, note) => {
         if (selected === null) return
         setBusy(true)
@@ -312,6 +413,8 @@ window.__ModuleLoader__.load({
           await post('/write', { cwd, path: selected, changes })
           if (note !== undefined) setNotice({ kind: 'ok', text: note })
           setDraft(null)
+          // A rewritten file re-renders every row: hidden again by default.
+          setRevealed(new Set())
           await load(cwd)
         } catch (error) {
           setNotice({ kind: 'error', text: String(error.message ?? error) })
@@ -321,6 +424,7 @@ window.__ModuleLoader__.load({
       }, [cwd, load, selected])
 
       const setField = (key, value) => setDraft(previous => (previous === null ? previous : { ...previous, [key]: value }))
+
       const toggleReveal = (key) => setRevealed((previous) => {
         const next = new Set(previous)
         if (next.has(key)) next.delete(key)
@@ -357,8 +461,9 @@ window.__ModuleLoader__.load({
           h('span', { className: 'secm-mono' }, selected ?? ''),
         ),
         h('div', { className: 'secm-field' },
-          h('label', { className: 'secm-field-label' }, '名称'),
+          h('label', { className: 'secm-field-label', htmlFor: 'secm-editor-key' }, '名称'),
           h(Input, {
+            id: 'secm-editor-key',
             className: 'secm-grow',
             value: draft.key,
             placeholder: 'MY_API_KEY',
@@ -370,8 +475,9 @@ window.__ModuleLoader__.load({
             : h('span', { className: 'secm-field-hint' }, '写进 .env 的键名，例如 STRIPE_SECRET_KEY。'),
         ),
         h('div', { className: 'secm-field' },
-          h('label', { className: 'secm-field-label' }, '值' ),
+          h('label', { className: 'secm-field-label', htmlFor: 'secm-editor-value' }, '值' ),
           h(Input, {
+            id: 'secm-editor-value',
             className: 'secm-grow',
             value: draft.value,
             placeholder: '粘贴密钥值',
@@ -402,16 +508,28 @@ window.__ModuleLoader__.load({
           keyRows.push(h('li', { key: `${entry.key}:form`, className: 'secm-form-item', ref: formRef }, renderForm()))
           continue
         }
+        const value = entry.value ?? ''
+        const shown = revealed.has(entry.key)
         keyRows.push(h('li', { key: entry.key, className: 'secm-row' },
-          h('span', { className: 'secm-key' }, entry.key),
-          // The page never paints a value: it can be copied, and edit writes a
-          // new one.
-          h('span', { className: 'secm-value' }, '••••••'),
+          h('span', { className: 'secm-key', title: entry.key }, entry.key),
+          // The value is masked at its real length until the eye is pressed; the
+          // page can copy it whole without ever painting it.
+          shown ? null : h('span', { className: 'secm-value', title: '值已隐藏' }, mask(value)),
+          h('span', { className: 'secm-spacer' }),
           h('span', { className: 'secm-row-actions' },
+            h('button', {
+              type: 'button',
+              className: `secm-iconbtn${shown ? ' secm-iconbtn-on' : ''}`,
+              title: shown ? `隐藏 ${entry.key} 的值` : `查看 ${entry.key} 的值`,
+              'aria-label': shown ? `隐藏 ${entry.key} 的值` : `查看 ${entry.key} 的值`,
+              'aria-pressed': shown,
+              disabled: value.length === 0,
+              onClick: () => toggleReveal(entry.key),
+            }, h(EyeGlyph, { off: shown })),
             h(Button, {
               size: 'sm', variant: 'ghost',
               onClick: async () => {
-                const ok = await copyText(entry.value ?? '')
+                const ok = await copyText(value)
                 setNotice(ok ? { kind: 'ok', text: `已复制 ${entry.key} 的值` } : { kind: 'error', text: `复制 ${entry.key} 失败：浏览器没有剪贴板权限` })
               },
             }, '复制值'),
@@ -420,6 +538,7 @@ window.__ModuleLoader__.load({
               onClick: () => { setNotice(null); setDraft({ mode: 'edit', key: entry.key, value: entry.value }) },
             }, '编辑'),
           ),
+          shown ? h('div', { className: 'secm-row-value' }, value) : null,
         ))
       }
       keyRows.push(draft !== null && draft.mode === 'add'
@@ -432,6 +551,15 @@ window.__ModuleLoader__.load({
               onClick: () => { setNotice(null); setDraft({ mode: 'add', key: '', value: '' }) },
             }, '＋ 新增密钥')))
 
+      const selectedFile = files.find(file => file.path === selected) ?? null
+      const fileLabel = file => (file.global === true ? `全局 $DSH_HOME/${file.name}` : file.relative)
+      /**
+       * The card leads with the file name: a full relative path ellipsizes its
+       * tail, which is exactly the part that says which file this is.
+       */
+      const fileOwner = file => (file.global === true
+        ? '全局 $DSH_HOME'
+        : file.packageRelative === '.' || file.packageRelative === undefined ? '仓库根目录' : file.packageRelative)
       const cells = files.map(file => h('li', {
         key: file.path,
         className: `secm-card${file.path === selected ? ' secm-card-active' : ''}`,
@@ -439,15 +567,57 @@ window.__ModuleLoader__.load({
       h('button', {
         type: 'button',
         className: 'secm-card-main',
-        onClick: () => { setNotice(null); setSelected(file.path); void loadFile(file.path) },
+        'aria-pressed': file.path === selected,
+        title: file.path,
+        onClick: () => {
+          setNotice(null)
+          revealKeys.current = true
+          setSelected(file.path)
+          void loadFile(file.path)
+        },
       },
         h('span', { className: 'secm-card-head' },
-          h('span', { className: 'secm-card-name' }, file.relative),
-          h(Tag, { tone: file.packageRelative === '.' ? 'info' : 'neutral' }, file.packageRelative === '.' ? '根目录' : file.packageRelative),
+          h('span', { className: 'secm-card-name' }, file.name),
+          file.global === true || file.packageRelative === '.'
+            ? h(Tag, { tone: 'info' }, file.global === true ? '全局' : '根目录')
+            : null,
         ),
-        h('span', { className: 'secm-card-desc' }, `${String(file.keys.length)} 个键`),
-        h('span', { className: 'secm-card-id' }, file.keys.join(', ') || '(空)'),
+        h('span', { className: 'secm-card-desc' }, `${String(file.keys.length)} 个键${file.missing === true ? ' · 未创建' : ''}`),
+        h('span', { className: 'secm-card-owner', title: file.path }, fileOwner(file)),
+        h('span', { className: 'secm-card-id', title: file.keys.join(', ') }, summarizeKeys(file.keys, 4)),
       )))
+
+      const createRootEnv = () => {
+        void (async () => {
+          setBusy(true)
+          setNotice(null)
+          try {
+            await post('/write', { cwd, path: `${data.projectRoot}/.env`, changes: [] })
+            setNotice({ kind: 'ok', text: `已创建 ${data.projectRoot}/.env` })
+            await load(cwd)
+          } catch (error) {
+            setNotice({ kind: 'error', text: String(error.message ?? error) })
+          } finally {
+            setBusy(false)
+          }
+        })()
+      }
+
+      // One empty state per reason: never a heading with zero rows under it.
+      const emptyCard = () => h('div', { className: 'secm-empty' },
+        h('p', { className: 'secm-empty-title' }, data.projectRoot === null ? '先选择一个工作区' : '这个仓库里还没有 .env 文件'),
+        h('p', { className: 'secm-empty-hint' }, data.projectRoot === null
+          ? '用上面的下拉框挑一个项目，插件会扫描它的仓库根和每个 workspace 包（以及全局 $DSH_HOME/.env）。'
+          : '密钥留在 .env 里，shell 调用通过 DSH_ENV_FILES 现读现用，值不会被读进对话。'),
+        data.projectRoot === null
+          ? null
+          : h(Button, { size: 'sm', variant: 'primary', disabled: busy, onClick: createRootEnv }, '在仓库根目录创建 .env'),
+      )
+
+      // The remote section speaks about the one node this workspace mirrors; a
+      // local workspace has no remote side, and the Host skips the node scan.
+      const remoteShown = remote.error !== null || remote.data === null
+        || remote.data.scoped != null || remote.data.available === false
 
       return h('div', { className: 'secm-section', ref: rootRef },
         h('style', null, CSS),
@@ -457,8 +627,14 @@ window.__ModuleLoader__.load({
           h('select', {
             className: 'secm-select',
             value: cwd ?? '',
+            'aria-label': '要扫描的工作区',
             title: '要扫描的工作区',
-            onChange: event => { setCwd(event.target.value); setSelected(null); setDraft(null) },
+            onChange: event => {
+              setCwd(event.target.value)
+              setSelected(null)
+              setDraft(null)
+              setRemote({ data: null, error: null })
+            },
           }, h('option', { value: '' }, '（不指定项目）'), options),
           h(Button, { size: 'sm', variant: 'outline', disabled: busy, onClick: () => { void load(cwd) } }, '刷新'),
           h(Button, {
@@ -466,94 +642,93 @@ window.__ModuleLoader__.load({
             onClick: () => { setNotice(null); setDraft({ mode: 'add', key: '', value: '' }) },
           }, '新增密钥'),
         ),
-        state.error !== null ? h('p', { className: 'secm-error' }, state.error) : null,
-        notice !== null ? h('p', { className: notice.kind === 'ok' ? 'secm-ok' : 'secm-error' }, notice.text) : null,
+        state.error !== null ? h('p', { className: 'secm-error', role: 'alert' }, state.error) : null,
+        notice !== null ? h('p', { className: notice.kind === 'ok' ? 'secm-ok' : 'secm-error', role: 'status' }, notice.text) : null,
         data !== null && data.projectRoot !== null
           ? h('div', { className: 'secm-facts' },
-              h('span', { className: 'secm-group-head' }, '模型在 shell 里看到的'),
+              h('span', { className: 'secm-group-head' }, h('span', { className: 'secm-group-title' }, '模型在 shell 里看到的')),
               h('span', { className: 'secm-mono' }, `DSH_ENV_FILE=${data.shell.DSH_ENV_FILE || '(无)'}`),
               h('span', { className: 'secm-mono' }, `DSH_ENV_FILES=${data.shell.DSH_ENV_FILES || '(无)'}`),
               h('span', { className: 'secm-mono' }, `DSH_ENV_KEYS=${data.shell.DSH_ENV_KEYS || '(无)'}`),
               h('span', { className: 'secm-note' }, '需要密钥的命令先执行：set -a; for f in ${DSH_ENV_FILES//:/ }; do . "$f"; done; set +a'),
             )
           : null,
-        data !== null && files.length === 0 && !state.loading
-          ? h('div', { className: 'secm-empty' },
-              h('p', { className: 'secm-note' }, data.projectRoot === null ? '请选择工作区。' : '这个仓库里还没有 .env 文件。'),
-              data.projectRoot === null
-                ? null
-                : h(Button, {
-                    size: 'sm', variant: 'primary', disabled: busy,
-                    onClick: () => {
-                      void (async () => {
-                        setBusy(true)
-                        setNotice(null)
-                        try {
-                          await post('/write', { cwd, path: `${data.projectRoot}/.env`, changes: [] })
-                          setNotice({ kind: 'ok', text: `已创建 ${data.projectRoot}/.env` })
-                          await load(cwd)
-                        } catch (error) {
-                          setNotice({ kind: 'error', text: String(error.message ?? error) })
-                        } finally {
-                          setBusy(false)
-                        }
-                      })()
-                    },
-                  }, '在仓库根目录创建 .env'),
-            )
-          : null,
         h('div', { className: 'secm-group' },
-          h('h3', { className: 'secm-group-head' }, `变量文件 · ${String(files.length)}`),
+          h('div', { className: 'secm-group-head' },
+            h('h3', { className: 'secm-group-title' }, '变量文件'),
+            h('span', { className: 'secm-group-count' }, String(files.length)),
+          ),
+          projectFiles.length === 0 && files.length > 0
+            ? h('p', { className: 'secm-note' }, '这个仓库里还没有 .env；上面那张是全局层，对所有项目生效。')
+            : null,
           state.loading && files.length === 0
             ? h('span', { className: 'secm-loading' }, '正在扫描…')
-            : h('ul', { className: 'secm-grid' }, cells),
+            : files.length > 0
+              ? h('ul', { className: 'secm-grid' }, cells)
+              : data === null ? null : emptyCard(),
         ),
         selected !== null
-          ? h('div', { className: 'secm-group' },
-              h('h3', { className: 'secm-group-head' }, `键 · ${String(entries.length)}　${selected}`),
+          ? h('div', { className: 'secm-group', ref: keysRef },
+              h('div', { className: 'secm-group-head' },
+                h('h3', { className: 'secm-group-title' }, `键 · ${String(entries.length)}`),
+                selectedFile === null ? null : h('span', { className: 'secm-group-path', title: selectedFile.path }, fileLabel(selectedFile)),
+              ),
+              selectedFile?.global === true
+                ? h('p', { className: 'secm-note' }, '全局层对所有项目生效，排在 DSH_ENV_FILES 最前（项目文件覆盖同名键）。DSH 进程自己也在启动时读它，所以进程配置（比如 NEW_API_KEY）改完要重启 dsh web；给 shell 用的值改完立刻生效。')
+                : null,
+              selectedFile?.missing === true
+                ? h('div', { className: 'secm-empty' },
+                    h('p', { className: 'secm-empty-title' }, '这个文件还没创建'),
+                    h('p', { className: 'secm-empty-hint' }, '保存第一个键时会一并创建；也可以先建一个空文件占位。'),
+                    h(Button, {
+                      size: 'sm', variant: 'primary', disabled: busy,
+                      onClick: () => { void write([], `已创建 ${selectedFile.path}`) },
+                    }, '创建空文件'),
+                  )
+                : null,
               h('ul', { className: 'secm-rows' }, keyRows),
             )
           : null,
-        h('div', { className: 'secm-group' },
-          h('h3', { className: 'secm-group-head' }, '远端节点（DevSpace）'),
-          remote.data != null && remote.data.scoped != null
-            ? h('p', { className: 'secm-note' }, `${showAllRemote ? '现在显示全部节点' : '只看当前工作区镜像的节点'}：${remote.data.scoped.label.length > 0 ? remote.data.scoped.label : remote.data.scoped.node}（${remote.data.scoped.node}）· 远端 ${remote.data.scoped.remotePath} · 本地 ${remote.data.scoped.localPath}`)
-            : null,
-          h('div', { className: 'secm-toolbar' },
-            h('span', { className: 'secm-note' }, '每个节点当前 .env 文件里的键名：扫描节点允许根 + 一级子目录，**只读键名，不读值**。'),
-            h('span', { className: 'secm-spacer' }),
-            (remote.data?.total ?? 0) > 1
-              ? h(Button, {
-                  size: 'sm', variant: 'ghost', disabled: busy,
-                  onClick: () => setShowAllRemote(current => !current),
-                }, showAllRemote ? '只看当前节点' : '显示全部节点')
-              : null,
-            h(Button, { size: 'sm', variant: 'outline', disabled: busy, onClick: () => { void loadRemote() } }, '刷新远端'),
+        remoteShown && h('div', { className: 'secm-group' },
+          h('div', { className: 'secm-group-head' },
+            h('h3', { className: 'secm-group-title' }, '远端节点（DevSpace）'),
+            remote.data === null ? null : h('span', { className: 'secm-group-count' }, `${String((remote.data.nodes ?? []).length)} 个节点`),
           ),
-          remote.error !== null ? h('p', { className: 'secm-error' }, remote.error) : null,
-          remote.data === null
-            ? h('span', { className: 'secm-loading' }, '读取中…')
-            : remote.data.available === false
-              ? h('p', { className: 'secm-note' }, remote.data.hint ?? '没有可用的远端节点。')
-              : (remote.data.nodes ?? []).length === 0
-                ? h('p', { className: 'secm-note' }, '没有启用的远端节点。')
-                : h('ul', { className: 'secm-remote' }, (remote.data.nodes ?? []).map(node => h('li', { key: node.node, className: 'secm-remote-node' },
-                    h('div', { className: 'secm-remote-head' },
-                      h(Tag, { tone: 'outline' }, node.label.length > 0 ? node.label : node.node),
-                      h('span', { className: 'secm-note' }, `${node.node} · ${node.root} · ${node.state === 'ready' ? '在线' : String(node.state)} · ${node.dialect === 'posix' ? 'bash' : 'PowerShell'}`),
-                      h('span', { className: 'secm-spacer' }),
-                      h('span', { className: 'secm-note' }, `${String((node.files ?? []).length)} 个文件 / ${String(node.keyCount)} 个键`),
-                    ),
-                    (node.errors ?? []).length > 0 ? h('p', { className: 'secm-error' }, node.errors.join('；')) : null,
-                    (node.files ?? []).length === 0
-                      ? h('p', { className: 'secm-note' }, '这个节点的允许根（含一级子目录）里没有 .env。')
-                      : h('ul', { className: 'secm-remote-files' }, (node.files ?? []).map(file => h('li', { key: file.path, className: 'secm-remote-file' },
-                          h('span', { className: 'secm-remote-path' }, file.nodePath ?? file.path),
-                          h('span', { className: 'secm-remote-keys' }, file.keys.length === 0
-                            ? (file.readable ? '（没有键）' : '读不到内容')
-                            : file.keys.join('、')),
-                        ))),
-                  ))),
+          h('div', { className: 'secm-toolbar' },
+            h('span', { className: 'secm-note' }, '键名来自该节点的允许根与一级子目录；值只在复制时单独读取。'),
+            h('span', { className: 'secm-spacer' }),
+            h(Button, { size: 'sm', variant: 'outline', disabled: remoteBusy, onClick: () => { void loadRemote() } },
+              remoteBusy ? '扫描中…' : remote.data === null ? '扫描远端节点' : '重新扫描'),
+          ),
+          remote.data !== null && remote.data.scoped != null
+            ? h('p', { className: 'secm-note' }, `当前工作区镜像的是 ${remote.data.scoped.label.length > 0 ? remote.data.scoped.label : remote.data.scoped.node}（${remote.data.scoped.node}）· 远端 ${remote.data.scoped.remotePath} · 本地 ${remote.data.scoped.localPath}`)
+            : null,
+          remote.error !== null ? h('p', { className: 'secm-error', role: 'alert' }, remote.error) : null,
+          remoteBusy && remote.data === null
+            ? h('span', { className: 'secm-loading' }, '正在扫描远端节点…（每个节点要跑若干次远端命令，通常几秒）')
+            : remote.data === null
+              ? null
+              : remote.data.available === false
+                ? h('p', { className: 'secm-note' }, remote.data.hint ?? '没有可用的远端节点。')
+                : (remote.data.nodes ?? []).length === 0
+                  ? h('p', { className: 'secm-note' }, '没有启用的远端节点。')
+                  : h('ul', { className: 'secm-remote' }, (remote.data.nodes ?? []).map(node => h('li', { key: node.node, className: 'secm-remote-node' },
+                      h('div', { className: 'secm-remote-head' },
+                        h(Tag, { tone: 'outline' }, node.label.length > 0 ? node.label : node.node),
+                        h('span', { className: 'secm-note' }, `${node.node} · ${node.root} · ${node.state === 'ready' ? '在线' : String(node.state)} · ${node.dialect === 'posix' ? 'bash' : 'PowerShell'}`),
+                        h('span', { className: 'secm-spacer' }),
+                        h('span', { className: 'secm-note' }, `${String((node.files ?? []).length)} 个文件 / ${String(node.keyCount)} 个键`),
+                      ),
+                      (node.errors ?? []).length > 0 ? h('p', { className: 'secm-error' }, node.errors.join('；')) : null,
+                      (node.files ?? []).length === 0
+                        ? h('p', { className: 'secm-note' }, '这个节点的允许根（含一级子目录）里没有 .env。')
+                        : h('ul', { className: 'secm-remote-files' }, (node.files ?? []).map(file => h('li', { key: file.path, className: 'secm-remote-file' },
+                            h('span', { className: 'secm-remote-path', title: file.nodePath ?? file.path }, file.nodePath ?? file.path),
+                            h('span', { className: 'secm-remote-keys', title: file.keys.join('、') }, file.keys.length === 0
+                              ? (file.readable ? '（没有键）' : '读不到内容')
+                              : summarizeKeys(file.keys, 8)),
+                          ))),
+                    ))),
         ),
       )
     }
@@ -566,15 +741,21 @@ window.__ModuleLoader__.load({
 .secm-insp-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: none; border-radius: 8px; background: transparent; color: var(--dsw-alias-label-secondary); cursor: pointer; }
 .secm-insp-btn:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
 .secm-insp-btn:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: -1px; }
-.secm-insp-dot { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: var(--dsw-alias-state-error-primary); }
 .secm-insp-panel { position: fixed; z-index: 60; display: flex; flex-direction: column; gap: 8px; width: 430px; max-width: calc(100vw - 24px); max-height: 62vh; overflow: auto; padding: 12px 14px; box-sizing: border-box; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 14px; background: var(--dsw-alias-bg-overlay); box-shadow: var(--dsw-elevation-prominent); color: var(--dsw-alias-label-primary); }
 .secm-insp-head-row { display: flex; align-items: center; gap: 8px; }
 .secm-insp-title { font-size: 13px; font-weight: 600; }
 .secm-insp-rows { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.secm-insp-row { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 5px 6px; border-radius: 6px; }
+.secm-insp-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; padding: 5px 6px; border-radius: 6px; }
 .secm-insp-row:hover { background: var(--dsw-alias-bg-layer-1); }
 .secm-insp-name { flex: none; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
 .secm-insp-desc { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+/* Same contract as the Settings page: a revealed value gets its own full line. */
+.secm-insp-value { order: 9; flex: 1 0 100%; margin-top: 2px; padding: 5px 7px; box-sizing: border-box; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 8px; background: var(--dsw-alias-bg-base); font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 12px; line-height: 17px; color: var(--dsw-alias-label-primary); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.secm-iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-secondary); cursor: pointer; }
+.secm-iconbtn:hover:not(:disabled) { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+.secm-iconbtn:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: -1px; }
+.secm-iconbtn:disabled { opacity: .4; cursor: default; }
+.secm-iconbtn-on { color: var(--dsw-alias-brand-primary); }
 .secm-insp-actions { flex: none; display: flex; align-items: center; gap: 2px; }
 .secm-insp-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
 .secm-insp-err { margin: 0; font-size: 12px; line-height: 1.5; color: var(--dsw-alias-state-error-primary); overflow-wrap: anywhere; }
@@ -591,7 +772,6 @@ window.__ModuleLoader__.load({
 .secm-insp-rowwrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .secm-insp-actions { flex: none; display: flex; align-items: center; gap: 2px; }
 .secm-insp-remote { display: flex; flex-direction: column; gap: 6px; padding: 6px 6px 8px; max-height: 280px; overflow: auto; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 10px; background: var(--dsw-alias-bg-base); }
-.secm-insp-alltitle { font-size: 11px; font-weight: 600; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
 .secm-insp-file { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .secm-insp-filerow { display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0; padding: 3px 4px; box-sizing: border-box; border: none; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-secondary); font-family: inherit; font-size: 12px; text-align: left; cursor: pointer; }
 .secm-insp-filerow:hover { background: var(--dsw-alias-bg-layer-1); }
@@ -604,8 +784,9 @@ window.__ModuleLoader__.load({
 .secm-insp-key:hover { border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
 .secm-insp-key:disabled { opacity: .5; cursor: default; }
 .secm-insp-grow { flex: 1 1 60px; min-width: 60px; }
-.secm-insp-key { flex: 0 1 120px; min-width: 80px; text-transform: uppercase; }
-.secm-insp-pre { margin: 0; padding: 8px 10px; max-height: 180px; overflow: auto; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 10px; background: var(--dsw-alias-bg-base); font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 11px; line-height: 16px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--dsw-alias-label-secondary); }
+/* The key-name field of the add row: its own class, so the chip rule above
+   cannot turn an input into a pill. */
+.secm-insp-keyinput { flex: 0 1 120px; min-width: 80px; text-transform: uppercase; }
 `
 
     /** Workspace directory this Session works in. */
@@ -678,8 +859,6 @@ window.__ModuleLoader__.load({
       const [files, setFiles] = React.useState(null)
       const [projectRoot, setProjectRoot] = React.useState(null)
       const [picked, setPicked] = React.useState(null)
-      const [shown, setShown] = React.useState(() => new Set())
-      const [values, setValues] = React.useState({})
       /** `{ key, value }` while one row is being re-valued. */
       const [editing, setEditing] = React.useState(null)
       /** `{ key, value }` while the add row is being filled in. */
@@ -687,31 +866,70 @@ window.__ModuleLoader__.load({
       /** The key awaiting a delete confirmation. */
       const [confirming, setConfirming] = React.useState(null)
       const [busy, setBusy] = React.useState(false)
+      /** Key names whose value the operator asked to see, and those values. */
+      const [shown, setShown] = React.useState(() => new Set())
+      const [values, setValues] = React.useState({})
       const [remote, setRemote] = React.useState(null)
       const [expandedRemote, setExpandedRemote] = React.useState(null)
       const [openRemoteFile, setOpenRemoteFile] = React.useState(null)
+      // A workspace that mirrors nothing has no remote side: the section is absent
+      // rather than listing every mounted node.
+      const remoteShown = remote === null || remote.available === false || remote.scoped != null
 
-      const [showAllRemote, setShowAllRemote] = React.useState(false)
-      React.useEffect(() => {
-        void (async () => {
-          try {
-            const params = []
-            if (cwd !== null && cwd !== undefined && cwd !== '') params.push(`cwd=${encodeURIComponent(cwd)}`)
-            if (showAllRemote) params.push('all=1')
-            setRemote(await call(`/remote${params.length === 0 ? '' : `?${params.join('&')}`}`))
-          } catch {
-            setRemote({ available: false, nodes: [], hint: '远端节点读取失败' })
-          }
-        })()
-      }, [cwd, showAllRemote])
+      /** The remote listing belongs to the workspace's mirror, so it follows cwd. */
+      const [remoteBusy, setRemoteBusy] = React.useState(false)
+      const remoteSeq = React.useRef(0)
+      const scanRemote = React.useCallback(async () => {
+        const seq = remoteSeq.current + 1
+        remoteSeq.current = seq
+        const key = `${cwd ?? ''}|scoped`
+        const cached = remoteCache.get(key)
+        if (cached !== undefined && Date.now() - cached.at < REMOTE_TTL_MS) {
+          setRemote(cached.data)
+          return
+        }
+        setRemoteBusy(true)
+        try {
+          const params = []
+          if (cwd !== null && cwd !== undefined && cwd !== '') params.push(`cwd=${encodeURIComponent(cwd)}`)
+          const data = await call(`/remote${params.length === 0 ? '' : `?${params.join('&')}`}`)
+          remoteCache.set(key, { at: Date.now(), data })
+          if (seq !== remoteSeq.current) return
+          setRemote(data)
+        } catch (failure) {
+          if (seq !== remoteSeq.current) return
+          setRemote({ available: false, nodes: [], hint: `远端节点读取失败：${String(failure.message ?? failure)}` })
+        } finally {
+          if (seq === remoteSeq.current) setRemoteBusy(false)
+        }
+      }, [cwd])
+
+      // A scan belongs to one workspace: switching Sessions re-resolves it.
+      React.useEffect(() => { setRemote(null); void scanRemote() }, [scanRemote])
 
       const load = React.useCallback(async () => {
         try {
           const answer = await call(`/state${cwd === null ? '' : `?cwd=${encodeURIComponent(cwd)}`}`)
-          const list = (answer.packages ?? []).flatMap(pkg => (pkg.files ?? []).map(file => ({ ...file, owner: pkg.relative })))
+          // The global layer leads the chips: it is what every project sources first.
+          const globalEntry = typeof answer.global?.path === 'string'
+            ? [{
+                path: answer.global.path,
+                name: '.env',
+                relative: '.env',
+                keys: answer.global.keys ?? [],
+                owner: '全局 $DSH_HOME',
+                global: true,
+                missing: answer.global.exists !== true,
+              }]
+            : []
+          const list = [...globalEntry, ...(answer.packages ?? []).flatMap(pkg => (pkg.files ?? []).map(file => ({ ...file, owner: pkg.relative })))]
           setFiles(list)
           setProjectRoot(answer.projectRoot ?? null)
-          setPicked(current => (current !== null && list.some(file => file.path === current) ? current : (list[0]?.path ?? null)))
+          // Default to the file a shell call would source (the project's nearest
+          // one), falling back to the first chip — the global file with no project.
+          const nearest = answer.shell?.DSH_ENV_FILE ?? ''
+          const fallback = list.find(file => file.path === nearest)?.path ?? list[0]?.path ?? null
+          setPicked(current => (current !== null && list.some(file => file.path === current) ? current : fallback))
           setError(null)
           secmInspectorFacts = {
             at: Date.now(),
@@ -728,6 +946,31 @@ window.__ModuleLoader__.load({
       }, [cwd])
       // Read on mount as well as on open, so the panel is ready when anchored.
       React.useEffect(() => { void load() }, [load])
+
+      /**
+       * Toggle one value's visibility. Revealing reads it once, on demand, and
+       * hides it again by dropping it: a hidden value is not kept in memory.
+       */
+      const toggleShown = async (path, key) => {
+        if (shown.has(key)) {
+          setShown((previous) => { const next = new Set(previous); next.delete(key); return next })
+          setValues((previous) => { const next = { ...previous }; delete next[key]; return next })
+          return
+        }
+        setBusy(true)
+        try {
+          const answer = await post('/file', { cwd, path })
+          const entry = (answer.entries ?? []).find(item => item.key === key)
+          if (entry === undefined) throw new Error(`没有 ${key} 这个键`)
+          setValues(previous => ({ ...previous, [key]: entry.value ?? '' }))
+          setShown(previous => new Set(previous).add(key))
+          setError(null)
+        } catch (failure) {
+          setError(String(failure.message ?? failure))
+        } finally {
+          setBusy(false)
+        }
+      }
 
       /**
        * Read one value and put it on the clipboard without ever rendering it:
@@ -777,6 +1020,7 @@ window.__ModuleLoader__.load({
           setEditing(null)
           setAdding(null)
           setConfirming(null)
+          // The file changed under the reveals: hide everything again.
           setShown(new Set())
           setValues({})
           setNotice(message ?? null)
@@ -826,11 +1070,15 @@ window.__ModuleLoader__.load({
       const keyName = value => /^[A-Za-z_][A-Za-z0-9_]*$/.test(String(value ?? '').trim())
       const current = files === null ? null : (files.find(file => file.path === picked) ?? null)
       const keys = current?.keys ?? []
+      // The global file is always listed, so "this project has no .env" is a
+      // question about the project files alone.
+      const projectFileCount = files === null ? 0 : files.filter(file => file.global !== true).length
       const valueInput = (state, setState, placeholder) => h('input', {
         className: 'secm-insp-input secm-insp-grow',
         type: 'password',
         autoComplete: 'new-password',
         placeholder,
+        'aria-label': placeholder,
         value: state.value,
         disabled: busy,
         onChange: event => setState({ ...state, value: event.target.value }),
@@ -843,11 +1091,15 @@ window.__ModuleLoader__.load({
           className: 'secm-insp-btn',
           title: '项目密钥',
           'aria-label': '项目密钥',
+          'aria-haspopup': 'dialog',
+          'aria-expanded': open,
           onClick: toggle,
         }, h(IconShieldOutline16, { size: 16 })),
         open && anchor !== null
           ? h('div', {
               className: 'secm-insp-panel',
+              role: 'dialog',
+              'aria-label': '项目密钥',
               style: { top: `${String(anchor.top)}px`, right: `${String(anchor.right)}px` },
             },
               h('div', { className: 'secm-insp-head-row' },
@@ -861,28 +1113,46 @@ window.__ModuleLoader__.load({
                 h('span', { className: 'secm-insp-sect' }, '本地'),
                 h('span', { className: 'secm-insp-count' }, `${projectRoot ?? cwd ?? '（未识别）'}`),
               ),
-              error !== null ? h('p', { className: 'secm-insp-err' }, error) : null,
-              notice !== null ? h('p', { className: 'secm-insp-note' }, notice) : null,
+              error !== null ? h('p', { className: 'secm-insp-err', role: 'alert' }, error) : null,
+              notice !== null ? h('p', { className: 'secm-insp-note', role: 'status' }, notice) : null,
+              files !== null && files.length > 0 && projectFileCount === 0
+                ? h('p', { className: 'secm-insp-note' }, '这个仓库里还没有 .env，下面那张是全局层，对所有项目生效。')
+                : null,
               files === null
-                ? h('p', { className: 'secm-insp-note' }, '读取中…')
+                ? h('p', { className: 'secm-insp-note', role: 'status' }, '正在读取本地 .env…')
                 : h(React.Fragment, null,
                     files.length === 0
-                      ? h('p', { className: 'secm-insp-note' }, '本地这个仓库里还没有 .env；远端节点的键可以展开后点键名复制值。')
+                      ? h('p', { className: 'secm-insp-note' }, '本地这个仓库里还没有 .env。')
                       : h('div', { className: 'secm-insp-strip' }, files.map(file => h('button', {
                           key: file.path,
                           type: 'button',
                           className: `secm-insp-chip${file.path === picked ? ' secm-insp-chip-active' : ''}`,
+                          'aria-pressed': file.path === picked,
                           title: file.path,
-                          onClick: () => { setPicked(file.path); setEditing(null); setAdding(null); setConfirming(null) },
-                        }, `${file.relative}（${String((file.keys ?? []).length)}）`))),
+                          onClick: () => {
+                            setPicked(file.path)
+                            setEditing(null)
+                            setAdding(null)
+                            setConfirming(null)
+                            // Reveals belong to the file that was on screen.
+                            setShown(new Set())
+                            setValues({})
+                          },
+                        }, `${file.global === true ? '全局 .env' : file.relative}（${String((file.keys ?? []).length)}）`))),
+                    current?.global === true
+                      ? h('p', { className: 'secm-insp-note' }, '全局层对所有项目生效；DSH 进程配置（如 NEW_API_KEY）改完要重启 dsh web。')
+                      : null,
                     // In-place CRUD: the picked file's keys, each row able to
-                    // reveal, re-value and delete without leaving the panel.
+                    // re-value and delete without leaving the panel.
                     keys.length === 0
-                      ? h('p', { className: 'secm-insp-note' }, picked === null
-                          ? '先选一个变量文件。'
-                          : '这个文件还没有键，用下面的输入框加一个。')
+                      ? (files.length === 0
+                          ? null
+                          : h('p', { className: 'secm-insp-note' }, picked === null
+                              ? '先选一个变量文件。'
+                              : current?.missing === true
+                                ? '这个文件还没创建，保存第一个键时就会建。'
+                                : '这个文件还没有键，用下面的输入框加一个。'))
                       : h('ul', { className: 'secm-insp-rows' }, keys.map(key => {
-                          const id = `${String(picked)}:${key}`
                           return h('li', { key, className: 'secm-insp-row' },
                             h('span', { className: 'secm-insp-name' }, key),
                             editing !== null && editing.key === key
@@ -902,8 +1172,18 @@ window.__ModuleLoader__.load({
                                     h(Button, { size: 'sm', variant: 'ghost', disabled: busy, onClick: () => setConfirming(null) }, '取消'),
                                   )
                                 : h(React.Fragment, null,
-                                    h('span', { className: 'secm-insp-desc' }, '••••••'),
+                                    shown.has(key) ? null : h('span', { className: 'secm-insp-desc' }, '••••••'),
                                     h('span', { className: 'secm-insp-actions' },
+                                      h('button', {
+                                        type: 'button',
+                                        className: `secm-iconbtn${shown.has(key) ? ' secm-iconbtn-on' : ''}`,
+                                        title: shown.has(key) ? `隐藏 ${key} 的值` : `查看 ${key} 的值`,
+                                        'aria-label': shown.has(key) ? `隐藏 ${key} 的值` : `查看 ${key} 的值`,
+                                        'aria-pressed': shown.has(key),
+                                        'data-secm-reveal': key,
+                                        disabled: busy,
+                                        onClick: () => { void toggleShown(picked, key) },
+                                      }, h(EyeGlyph, { off: shown.has(key) })),
                                       h(Button, {
                                         size: 'sm', variant: 'ghost', disabled: busy,
                                         'data-secm-copy': key,
@@ -912,6 +1192,7 @@ window.__ModuleLoader__.load({
                                       h(Button, { size: 'sm', variant: 'ghost', disabled: busy, onClick: () => { setConfirming(null); setEditing({ key, value: '' }) } }, '改'),
                                       h(Button, { size: 'sm', variant: 'ghost', disabled: busy, onClick: () => { setEditing(null); setConfirming(key) } }, '删'),
                                     ),
+                                    shown.has(key) ? h('div', { className: 'secm-insp-value' }, values[key] ?? '') : null,
                                   ),
                           )
                         })),
@@ -925,8 +1206,9 @@ window.__ModuleLoader__.load({
                               }, '新增键')
                             : h(React.Fragment, null,
                                 h('input', {
-                                  className: 'secm-insp-input secm-insp-key',
+                                  className: 'secm-insp-input secm-insp-keyinput',
                                   placeholder: 'KEY_NAME',
+                                  'aria-label': '新增键名',
                                   value: adding.key,
                                   disabled: busy,
                                   onChange: event => setAdding({ ...adding, key: event.target.value }),
@@ -939,85 +1221,83 @@ window.__ModuleLoader__.load({
                                 }, '保存'),
                                 h(Button, { size: 'sm', variant: 'ghost', disabled: busy, onClick: () => setAdding(null) }, '取消'),
                               )),
-                    files.length === 0 && projectRoot !== null
+                    projectFileCount === 0 && projectRoot !== null
                       ? h(Button, { size: 'sm', variant: 'outline', disabled: busy, onClick: () => { void createFile() } }, '在仓库根创建 .env')
                       : null,
                   ),
-              h('div', { className: 'secm-insp-sep' }),
-              remote === null
-                ? h('p', { className: 'secm-insp-note' }, '远端读取中…（每个节点要跑若干次远端命令，通常几秒）')
-                : null,
-              remote !== null && remote.available !== false && (remote.nodes ?? []).length > 0
-                ? h('div', null,
-                    h('div', { className: 'secm-insp-head-row' },
-                      h('span', { className: 'secm-insp-sect' }, `远端节点 · ${String((remote.nodes ?? []).length)}${(remote.total ?? 0) > 1 && remote.scoped !== null ? `/${String(remote.total)}` : ''}${remote.durationMs === undefined ? '' : ` · 读取 ${(remote.durationMs / 1000).toFixed(1)}s`}`),
-                      h('span', { style: { flex: '1' } }),
-                      (remote.total ?? 0) > 1
-                        ? h(Button, {
-                            size: 'sm', variant: 'ghost',
-                            onClick: () => setShowAllRemote(current => !current),
-                          }, showAllRemote ? '只看当前节点' : '显示全部节点')
-                        : null,
-                    ),
-                    remote.scoped != null && !showAllRemote
-                      ? h('p', { className: 'mcpm-insp-note' }, `当前工作区镜像的是 ${remote.scoped.label.length > 0 ? remote.scoped.label : remote.scoped.node}（${remote.scoped.node}）· 远端 ${remote.scoped.remotePath}`)
-                      : null,
-                    h('ul', { className: 'secm-insp-rows' }, (remote.nodes ?? []).map(node => h('li', { key: node.node, className: 'secm-insp-rowwrap' },
-                        h('div', { className: 'secm-insp-row' },
-                          h('span', { className: 'secm-insp-name' }, node.label.length > 0 ? node.label : node.node),
-                          h('span', { className: 'secm-insp-desc' }, (node.files ?? []).length === 0
-                            ? `${node.node} · 没有 .env`
-                            : `${String((node.files ?? []).length)} 个 .env / ${String(node.keyCount)} 个键 · ${node.node}`),
-                          h('span', { className: 'secm-insp-actions' },
-                            (node.files ?? []).length > 0
-                              ? h(Button, {
-                                  size: 'sm', variant: 'ghost',
-                                  'data-secm-expand': node.node,
-                                  onClick: () => setExpandedRemote(current => (current === node.node ? null : node.node)),
-                                }, expandedRemote === node.node ? '收起' : '展开')
-                              : null,
-                          ),
-                        ),
-                        expandedRemote === node.node && (node.files ?? []).length > 0
-                          ? h('div', { className: 'secm-insp-remote' }, (node.files ?? []).map((file) => {
-                              const fileOpen = openRemoteFile === file.path
-                              return h('div', { key: file.path, className: 'secm-insp-file' },
-                                h('button', {
-                                  type: 'button',
-                                  className: 'secm-insp-filerow',
-                                  'data-secm-file': file.path,
-                                  'aria-expanded': fileOpen,
-                                  title: file.nodePath ?? file.path,
-                                  onClick: () => setOpenRemoteFile(current => (current === file.path ? null : file.path)),
-                                },
-                                  h(IconChevronRightOutline14, { size: 12, className: 'secm-insp-caret', style: { transform: fileOpen ? 'rotate(90deg)' : 'none' } }),
-                                  h('span', { className: 'secm-insp-filename' }, file.nodePath ?? file.path),
-                                  h('span', { className: 'secm-insp-filecount' }, `${String(file.keys.length)} 个键`),
+              remoteShown && h('div', { className: 'secm-insp-sep' }),
+              remoteShown && h('div', { className: 'secm-insp-head-row' },
+                h('span', { className: 'secm-insp-sect' }, remote === null
+                  ? '远端节点'
+                  : `远端节点 · ${String((remote.nodes ?? []).length)}${remote.durationMs === undefined ? '' : ` · 读取 ${(remote.durationMs / 1000).toFixed(1)}s`}`),
+                h('span', { style: { flex: '1' } }),
+                h(Button, {
+                  size: 'sm', variant: remote === null ? 'outline' : 'ghost', disabled: remoteBusy,
+                  onClick: () => { void scanRemote() },
+                }, remoteBusy ? '扫描中…' : remote === null ? '扫描' : '重扫'),
+              ),
+              remote !== null && remote.available === false
+                ? h('p', { className: 'secm-insp-note' }, remote.hint ?? '没有可用的远端节点。')
+                : remote === null || remote.scoped == null || (remote.nodes ?? []).length === 0
+                  ? null
+                  : h(React.Fragment, null,
+                          h('p', { className: 'secm-insp-note' }, `当前工作区镜像的是 ${remote.scoped.label.length > 0 ? remote.scoped.label : remote.scoped.node}（${remote.scoped.node}）· 远端 ${remote.scoped.remotePath}`),
+                          h('ul', { className: 'secm-insp-rows' }, (remote.nodes ?? []).map(node => h('li', { key: node.node, className: 'secm-insp-rowwrap' },
+                              h('div', { className: 'secm-insp-row' },
+                                h('span', { className: 'secm-insp-name' }, node.label.length > 0 ? node.label : node.node),
+                                h('span', { className: 'secm-insp-desc' }, (node.files ?? []).length === 0
+                                  ? `${node.node} · 没有 .env`
+                                  : `${String((node.files ?? []).length)} 个 .env / ${String(node.keyCount)} 个键 · ${node.node}`),
+                                h('span', { className: 'secm-insp-actions' },
+                                  (node.files ?? []).length > 0
+                                    ? h(Button, {
+                                        size: 'sm', variant: 'ghost',
+                                        'data-secm-expand': node.node,
+                                        'aria-expanded': expandedRemote === node.node,
+                                        onClick: () => setExpandedRemote(current => (current === node.node ? null : node.node)),
+                                      }, expandedRemote === node.node ? '收起' : '展开')
+                                    : null,
                                 ),
-                                fileOpen
-                                  ? (file.keys.length === 0
-                                      ? h('p', { className: 'secm-insp-note' }, file.readable ? '（没有键）' : '读不到内容')
-                                      : h(React.Fragment, null,
-                                          h('p', { className: 'secm-insp-note' }, '点键名即复制它的值（值不会显示在这里）。'),
-                                          h('ul', { className: 'secm-insp-keys' }, file.keys.map(key => h('li', { key },
-                                              h('button', {
-                                                type: 'button',
-                                                className: 'secm-insp-key',
-                                                'data-secm-copy-remote': `${file.path}:${key}`,
-                                                title: `复制 ${key} 的值`,
-                                                disabled: busy,
-                                                onClick: () => { void copyRemoteValue(node.node, file.path, key) },
-                                              }, key),
-                                            ))),
-                                        ))
-                                  : null,
-                              )
-                            }))
-                          : null,
-                      ))),
-                  )
-                : null,
-              h('p', { className: 'secm-insp-note' }, '值不显示，只能整段复制到剪贴板；写入保留注释与顺序，值也不会进模型上下文。'),
+                              ),
+                              expandedRemote === node.node && (node.files ?? []).length > 0
+                                ? h('div', { className: 'secm-insp-remote' }, (node.files ?? []).map((file) => {
+                                    const fileOpen = openRemoteFile === file.path
+                                    return h('div', { key: file.path, className: 'secm-insp-file' },
+                                      h('button', {
+                                        type: 'button',
+                                        className: 'secm-insp-filerow',
+                                        'data-secm-file': file.path,
+                                        'aria-expanded': fileOpen,
+                                        title: file.nodePath ?? file.path,
+                                        onClick: () => setOpenRemoteFile(current => (current === file.path ? null : file.path)),
+                                      },
+                                        h(IconChevronRightOutline14, { size: 12, className: 'secm-insp-caret', style: { transform: fileOpen ? 'rotate(90deg)' : 'none' } }),
+                                        h('span', { className: 'secm-insp-filename' }, file.nodePath ?? file.path),
+                                        h('span', { className: 'secm-insp-filecount' }, `${String(file.keys.length)} 个键`),
+                                      ),
+                                      fileOpen
+                                        ? (file.keys.length === 0
+                                            ? h('p', { className: 'secm-insp-note' }, file.readable ? '（没有键）' : '读不到内容')
+                                            : h(React.Fragment, null,
+                                                h('p', { className: 'secm-insp-note' }, '点键名即复制它的值（值不会显示在这里）。'),
+                                                h('ul', { className: 'secm-insp-keys' }, file.keys.map(key => h('li', { key },
+                                                    h('button', {
+                                                      type: 'button',
+                                                      className: 'secm-insp-key',
+                                                      'data-secm-copy-remote': `${file.path}:${key}`,
+                                                      title: `复制 ${key} 的值`,
+                                                      disabled: busy,
+                                                      onClick: () => { void copyRemoteValue(node.node, file.path, key) },
+                                                    }, key),
+                                                  ))),
+                                              ))
+                                        : null,
+                                    )
+                                  }))
+                                : null,
+                            ))),
+                        ),
+              h('p', { className: 'secm-insp-note' }, '值不显示，只能整段复制；写入保留注释与顺序，值不会进模型上下文。'),
 
             )
           : null,

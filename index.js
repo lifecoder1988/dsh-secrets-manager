@@ -6,24 +6,31 @@
  * package.json `workspaces`), finds each package's env files in dotenv layering
  * order, and edits them without destroying comments or key order.
  *
+ * One file sits above every project: the Harness home's own `.env`
+ * (`$DSH_HOME/.env`), which DSH itself loads at boot and which this plugin puts
+ * first in every chain. Later files win, so a project overrides the global
+ * layer, and a directory with no env file of its own still gets the global keys.
+ *
  * It also tells the model how to reach those secrets from the shell. The shell
  * tool only accepts harness-owned `DSH_*` facts, so this plugin contributes:
  *   - `DSH_ENV_FILE`  nearest env file for the executing directory
- *   - `DSH_ENV_FILES` the full root→nearest chain, colon separated
+ *   - `DSH_ENV_FILES` the full chain, global first then root→nearest, colon separated
  *   - `DSH_ENV_KEYS`  available key names (never values)
  * and one short prompt section with the sourcing idiom. Values themselves never
  * enter the environment of every command and never enter the transcript.
  *
  * `ShellEnvRegistry.collect()` calls `resolve()` synchronously for every shell
- * call and lets a throw escape, so resolution is a pure index lookup; discovery
- * runs ahead of it and is re-warmed after every write.
+ * call and lets a throw escape, so resolution is an index lookup plus one small
+ * read of the global file; discovery runs ahead of it and is re-warmed after
+ * every write.
  *
  * Deliberately dependency-free: only `node:*` builtins and Cordis services.
  */
 
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { homedir } from 'node:os'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'secrets-manager'
@@ -43,8 +50,30 @@ const MAX_BODY_BYTES = 1 << 20
 /** Env files probed in every directory, in dotenv layering order. */
 const BASE_ENV_FILES = ['.env', '.env.local']
 
+/** Env-file basename grammar, shared by discovery and the global-directory check. */
+const ENV_FILE_NAME = /^\.env(?:\.|$)/
+
 /** Bound on workspace-package expansion. */
 const MAX_PACKAGES = 400
+
+/**
+ * The global (Harness-home) env file every project shares.
+ *
+ * `$DSH_HOME/.env` is the file DSH's own bootstrap reads for the launching
+ * environment, so it is the one dotenv path that is genuinely global. `dshHome`
+ * and `globalEnv` are config overrides, in that order of precedence.
+ * @param {{ dshHome?: string, globalEnv?: string }} config - plugin config.
+ * @returns {string} absolute path of the global env file.
+ */
+function resolveGlobalEnvFile(config) {
+  if (typeof config.globalEnv === 'string' && config.globalEnv.trim().length > 0) {
+    return resolve(config.globalEnv.trim())
+  }
+  const home = typeof config.dshHome === 'string' && config.dshHome.trim().length > 0
+    ? config.dshHome.trim()
+    : process.env.DSH_HOME ?? join(homedir(), '.dsh')
+  return join(resolve(home), '.env')
+}
 
 /* ------------------------------------------------------------------ *
  * dotenv reading and writing
@@ -269,6 +298,38 @@ export function apply(ctx, config = {}) {
   const maxPackages = config.maxPackages ?? MAX_PACKAGES
   const warn = message => ctx.logger.warn(message)
 
+  /** The one env file that belongs to no project. */
+  const globalFile = resolveGlobalEnvFile(config)
+  const globalDir = dirname(globalFile)
+
+  /**
+   * Whether a write/read target is an env file in the global directory. The
+   * project root is the other allowed root; nothing else is writable, so this
+   * stays an env-file editor rather than a general file writer.
+   */
+  const isGlobalEnvTarget = target => dirname(target) === globalDir && ENV_FILE_NAME.test(basename(target))
+
+  /**
+   * The global file's key names, read fresh: it is one small file, and reading
+   * it per shell call keeps a hand edit honest without a second index to warm.
+   * @returns {string[]} key names, empty when the file is absent or unreadable.
+   */
+  const globalKeyNames = () => {
+    try {
+      return parseEnvFile(readFileSync(globalFile, 'utf8')).entries.map(entry => entry.key)
+    } catch {
+      return []
+    }
+  }
+
+  /** Discovery facts for the global file, for the pages and the tool. */
+  const globalState = () => ({
+    path: globalFile,
+    dir: globalDir,
+    exists: existsSync(globalFile),
+    keys: globalKeyNames(),
+  })
+
   /**
    * Warm discovery index: one entry per directory that holds env files.
    * `chains` maps a directory to its root→nearest env-file chain and the union
@@ -355,37 +416,49 @@ export function apply(ctx, config = {}) {
     void scanRoot(root).catch(error => warn(`secrets-manager: scan failed: ${String(error)}`))
   }
 
+  /**
+   * The env files one shell call sources, in order. The global file comes first
+   * so a project value overrides it, and a directory with no project chain still
+   * receives the global keys.
+   * @param {string | undefined} cwd - the shell call's directory.
+   * @returns {{ files: string[], keys: string[] }} existing files and key names.
+   */
+  const sourcedChain = (cwd) => {
+    const chain = lookupChain(cwd)
+    // The index can outlive a deleted file; a stale pointer would make the
+    // sourcing idiom fail on a missing path.
+    const project = (chain?.files ?? []).filter(path => existsSync(path))
+    const files = existsSync(globalFile) ? [globalFile, ...project] : project
+    // Two layers may define the same key (the project wins); the list is a set,
+    // so a name appears once.
+    return { files, keys: [...new Set([...globalKeyNames(), ...(chain?.keys ?? [])])] }
+  }
+
   // ---- DSH_* shell facts -------------------------------------------
 
   ctx.shellEnv.register({
     name: 'secrets-manager',
     variables: {
-      DSH_ENV_FILE: { description: 'Nearest .env file for this shell call’s directory; empty when the project has none.' },
-      DSH_ENV_FILES: { description: 'Colon-separated root→nearest chain of .env files for this shell call; source them in order to load project secrets.' },
+      DSH_ENV_FILE: { description: 'Nearest .env file for this shell call’s directory; the global $DSH_HOME/.env when the project has none; empty when neither exists.' },
+      DSH_ENV_FILES: { description: 'Colon-separated chain of .env files for this shell call, global ($DSH_HOME/.env) first and the project root→nearest chain after it; source them in order so project values win.' },
       DSH_ENV_KEYS: { description: 'Comma-separated names of the secret keys available from DSH_ENV_FILES; never contains values.' },
     },
     /**
-     * Synchronous, total resolution: an index lookup only.
+     * Synchronous, total resolution: an index lookup plus one read of the global
+     * file.
      * @param {object} execution - the shell tool execution.
      * @returns {Record<string, string>} the facts available for this call.
      */
     resolve(execution) {
       const cwd = execution?.agent?.session?.header?.cwd
-      const chain = lookupChain(cwd)
-      if (chain === undefined) {
-        warm(cwd)
-        return {}
-      }
-      // The index can outlive a deleted file; a stale pointer would make the
-      // sourcing idiom fail on a missing path.
-      const files = chain.files.filter(path => existsSync(path))
-      if (files.length === 0) {
+      const chain = sourcedChain(cwd)
+      if (chain.files.length === 0) {
         warm(cwd)
         return {}
       }
       return {
-        DSH_ENV_FILE: files[files.length - 1],
-        DSH_ENV_FILES: files.join(':'),
+        DSH_ENV_FILE: chain.files[chain.files.length - 1],
+        DSH_ENV_FILES: chain.files.join(':'),
         DSH_ENV_KEYS: chain.keys.join(','),
       }
     },
@@ -403,7 +476,7 @@ export function apply(ctx, config = {}) {
         text: [
           'Some projects keep secrets in dotenv files. When a command needs them, source the chain first:',
           '`set -a; for f in ${DSH_ENV_FILES//:/ }; do [ -f "$f" ] && . "$f"; done; set +a`',
-          '`DSH_ENV_FILES` is the root→nearest chain (colon separated) and `DSH_ENV_KEYS` lists the available names.',
+          '`DSH_ENV_FILES` is the colon-separated chain — the global `$DSH_HOME/.env` first, then the project root→nearest files, so project values win — and `DSH_ENV_KEYS` lists the available names.',
           'Never print secret values into the conversation; reference them through the environment instead.',
         ].join('\n'),
       }), 'secrets-manager: prompt section')
@@ -482,8 +555,13 @@ export function apply(ctx, config = {}) {
     if (devspace === null) {
       return { available: false, nodes: [], hint: '这个 harness 没有装 DevSpace 节点插件，所以没有远端可以列。' }
     }
-    const all = await devspace.nodes()
     const scope = input.all === true ? null : await scopedMirror(devspace, input.cwd)
+    // A Workspace that mirrors nothing has no remote side to report: answer
+    // before reading a node, so an ordinary local project costs no remote call.
+    if (scope === null && input.all !== true) {
+      return { available: true, nodes: [], scoped: null, total: 0, durationMs: Date.now() - startedAt }
+    }
+    const all = await devspace.nodes()
     const nodes = scope === null ? all : all.filter(node => node.name === scope.node)
     // The mirrored project first, then the node's root, then its HOME.
     const relative = typeof scope?.relative === 'string' ? scope.relative : ''
@@ -617,16 +695,17 @@ export function apply(ctx, config = {}) {
         packages.push({ dir, relative: relative(root, dir) || '.', files })
       }
     }
-    const chain = lookupChain(cwd)
+    const chain = sourcedChain(cwd)
     return {
       cwd: cwd ?? null,
       projectRoot: root,
+      global: globalState(),
       packages,
-      keys: chain?.keys ?? [],
+      keys: chain.keys,
       shell: {
-        DSH_ENV_FILE: chain?.files[chain.files.length - 1] ?? '',
-        DSH_ENV_FILES: chain?.files.join(':') ?? '',
-        DSH_ENV_KEYS: chain?.keys.join(',') ?? '',
+        DSH_ENV_FILE: chain.files[chain.files.length - 1] ?? '',
+        DSH_ENV_FILES: chain.files.join(':'),
+        DSH_ENV_KEYS: chain.keys.join(','),
       },
       nodeEnv: process.env.NODE_ENV ?? null,
       envFileNames: names,
@@ -635,31 +714,35 @@ export function apply(ctx, config = {}) {
     }
   }
 
-  /** Require a path inside the project root. */
-  const requireInsideProject = async (cwd, path) => {
+  /**
+   * Resolve a read/write target against the two allowed roots: the project the
+   * cwd belongs to, and the global env directory.
+   */
+  const requireEnvTarget = async (cwd, path) => {
     if (typeof path !== 'string' || path.length === 0) throw new HttpError(400, 'a file path is required')
+    const target = resolve(path)
+    if (isGlobalEnvTarget(target)) return { root: null, target, global: true }
     if (typeof cwd !== 'string' || cwd.length === 0) throw new HttpError(400, 'a workspace directory is required')
     const root = findProjectRoot(cwd)
-    const target = resolve(path)
     if (!isInside(root, target)) throw new HttpError(400, `path is outside the project root: ${target}`)
-    return { root, target }
+    return { root, target, global: false }
   }
 
   /** Read one env file as positioned entries. */
   const readFileEntries = async (input) => {
-    const { target } = await requireInsideProject(input.cwd, input.path)
+    const { target } = await requireEnvTarget(input.cwd, input.path)
     let text = ''
     try {
       text = await readFile(target, 'utf8')
     } catch (error) {
       if (error?.code !== 'ENOENT') throw new HttpError(500, String(error))
     }
-    return { path: target, entries: parseEnvFile(text).entries.map(entry => ({ key: entry.key, value: entry.value })) }
+    return { path: target, global: isGlobalEnvTarget(target), entries: parseEnvFile(text).entries.map(entry => ({ key: entry.key, value: entry.value })) }
   }
 
   /** Apply add/update/remove operations to one env file. */
   const writeEntries = async (input) => {
-    const { root, target } = await requireInsideProject(input.cwd, input.path)
+    const { root, target, global } = await requireEnvTarget(input.cwd, input.path)
     let text = ''
     try {
       text = await readFile(target, 'utf8')
@@ -693,8 +776,10 @@ export function apply(ctx, config = {}) {
     const temporary = `${target}.tmp-${String(process.pid)}`
     await writeFile(temporary, rendered, { encoding: 'utf8', mode: 0o600 })
     await rename(temporary, target)
-    await scanRoot(root)
-    return { ok: true, path: target, changed: changes.length }
+    // The global file is read fresh on every shell call, so only the project
+    // index needs re-warming here.
+    if (root !== null) await scanRoot(root)
+    return { ok: true, path: target, global, changed: changes.length }
   }
 
   const handle = async (req, res) => {
@@ -743,16 +828,18 @@ export function apply(ctx, config = {}) {
   ctx.effect(() => ctx.tools.register({
     name: 'project_secrets',
     description:
-      'List and edit a project’s dotenv files (monorepo included) without reading secret values into the conversation. '
-      + '`list` reports every .env file under the repository root and the key NAMES each holds; `set` and `remove` change keys. '
-      + 'Shell commands reach the values through the managed DSH_ENV_FILE / DSH_ENV_FILES facts instead of printing them.',
+      'List and edit dotenv files without reading secret values into the conversation: a project’s own files (monorepo included) '
+      + `and the global \`$DSH_HOME/.env\` every project shares. `
+      + '`list` reports every .env file and the key NAMES each holds; `set` and `remove` change keys, in the project by default and in the global file with `scope: "global"`. '
+      + 'Shell commands reach the values through the managed DSH_ENV_FILE / DSH_ENV_FILES facts (global first, project overrides) instead of printing them.',
     parameters: {
       type: 'object',
       properties: {
         action: { type: 'string', enum: ['list', 'files', 'set', 'remove', 'remote'], description: 'Operation to perform.' },
         key: { type: 'string', description: 'Environment key name; required for set/remove.' },
         value: { type: 'string', description: 'New value; required for set.' },
-        path: { type: 'string', description: 'Target .env path; defaults to the project root .env.' },
+        scope: { type: 'string', enum: ['project', 'global'], description: 'Which layer to write: the project’s files (default) or the global $DSH_HOME/.env that every project sources first.' },
+        path: { type: 'string', description: 'Target .env path; defaults to the project root .env (or the global file with scope "global").' },
         packageDir: { type: 'string', description: 'Workspace package directory (relative); its .env is the target.' },
         cwd: { type: 'string', description: 'Directory to resolve the project chain (and the mirrored node) for; defaults to the process cwd.' },
         all: { type: 'boolean', description: 'For `remote`: list every node instead of only the node this working directory mirrors.' },
@@ -768,13 +855,19 @@ export function apply(ctx, config = {}) {
     async execute(args, exec) {
       const cwd = exec.agent?.session?.header?.cwd
       const state = await buildState(cwd)
-      if (state.projectRoot === null) throw new HttpError(400, 'this session has no workspace directory')
+      const globalScope = args.scope === 'global'
+      // The global layer belongs to no workspace, so it stays reachable from a
+      // session without one.
+      if (!globalScope && args.action !== 'remote' && state.projectRoot === null) {
+        throw new HttpError(400, 'this session has no workspace directory')
+      }
       switch (args.action) {
         case 'remote': return await remoteEnv({ cwd: args?.cwd, all: args?.all === true })
         case 'list':
         case 'files':
           return {
             projectRoot: state.projectRoot,
+            global: state.global,
             files: state.packages.flatMap(pkg => pkg.files.map(file => ({ path: file.path, relative: file.relative, keys: file.keys }))),
             shellFacts: state.shell,
           }
@@ -783,11 +876,17 @@ export function apply(ctx, config = {}) {
           {
             const key = String(args.key ?? '')
             if (!ENV_KEY.test(key)) throw new HttpError(400, `invalid environment key ${JSON.stringify(args.key ?? null)}`)
-            const target = typeof args.path === 'string' && args.path.length > 0
+            const explicit = typeof args.path === 'string' && args.path.length > 0
+            if (globalScope && explicit) {
+              throw new HttpError(400, 'pass either scope "global" or a path, not both')
+            }
+            const target = explicit
               ? args.path
-              : typeof args.packageDir === 'string' && args.packageDir.length > 0
-                ? join(state.projectRoot, args.packageDir, '.env')
-                : join(state.projectRoot, '.env')
+              : globalScope
+                ? state.global.path
+                : typeof args.packageDir === 'string' && args.packageDir.length > 0
+                  ? join(state.projectRoot, args.packageDir, '.env')
+                  : join(state.projectRoot, '.env')
             return await writeEntries({
               cwd,
               path: target,
@@ -810,10 +909,10 @@ export function apply(ctx, config = {}) {
       ctx.effect(() => inspect.register({
         manifest: {
           id: 'SecretsManager',
-          description: 'Live facts about the secrets manager: the discovery index, per-directory env chains and the DSH_ENV_* facts a shell call would receive.',
+          description: 'Live facts about the secrets manager: the global $DSH_HOME/.env, the discovery index, per-directory env chains and the DSH_ENV_* facts a shell call would receive.',
           methods: [{
             name: 'report',
-            description: 'Return the indexed directories, their env-file chains and key names, plus the shell facts for one optional cwd.',
+            description: 'Return the global env file, the indexed directories, their env-file chains and key names, plus the shell facts for one optional cwd.',
             inputSchema: {
               type: 'object',
               properties: { cwd: { type: 'string', description: 'Directory to resolve shell facts for.' } },
@@ -826,12 +925,13 @@ export function apply(ctx, config = {}) {
           const cwd = typeof input?.cwd === 'string'
             ? input.cwd
             : context?.agent?.session?.header?.cwd
-          const chain = lookupChain(cwd)
+          const chain = sourcedChain(cwd)
           return {
+            global: globalState(),
             knownRoots: [...knownRoots],
             indexedDirectories: [...index.entries()].map(([dir, value]) => ({ dir, files: value.files, keys: value.keys })),
             cwd: cwd ?? null,
-            resolved: chain === undefined
+            resolved: chain.files.length === 0
               ? null
               : {
                   DSH_ENV_FILE: chain.files[chain.files.length - 1] ?? '',
