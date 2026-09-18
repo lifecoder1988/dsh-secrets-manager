@@ -220,13 +220,17 @@ window.__ModuleLoader__.load({
         }
       }, [cwd])
 
+      const [showAllRemote, setShowAllRemote] = React.useState(false)
       const loadRemote = React.useCallback(async () => {
         try {
-          setRemote({ data: await call('/remote'), error: null })
+          const params = []
+          if (cwd !== null && cwd !== undefined && cwd !== '') params.push(`cwd=${encodeURIComponent(cwd)}`)
+          if (showAllRemote) params.push('all=1')
+          setRemote({ data: await call(`/remote${params.length === 0 ? '' : `?${params.join('&')}`}`), error: null })
         } catch (error) {
           setRemote({ data: null, error: String(error.message ?? error) })
         }
-      }, [])
+      }, [cwd, showAllRemote])
 
       const load = React.useCallback(async (target) => {
         setState(previous => ({ ...previous, loading: true, error: null }))
@@ -472,9 +476,20 @@ window.__ModuleLoader__.load({
           : null,
         h('div', { className: 'secm-group' },
           h('h3', { className: 'secm-group-head' }, '远端节点（DevSpace）'),
+          remote.data !== null && remote.data.scoped !== null
+            ? h('p', { className: 'secm-note' }, showAllRemote
+                ? `当前工作区镜像的是 ${remote.data.scoped.label.length > 0 ? remote.data.scoped.label : remote.data.scoped.node}（${remote.data.scoped.node}）· 现在显示全部节点`
+                : `只看当前工作区镜像的节点：${remote.data.scoped.label.length > 0 ? remote.data.scoped.label : remote.data.scoped.node}（${remote.data.scoped.node}）`) 
+            : null,
           h('div', { className: 'secm-toolbar' },
             h('span', { className: 'secm-note' }, '每个节点当前 .env 文件里的键名：扫描节点允许根 + 一级子目录，**只读键名，不读值**。'),
             h('span', { className: 'secm-spacer' }),
+            (remote.data?.total ?? 0) > 1
+              ? h(Button, {
+                  size: 'sm', variant: 'ghost', disabled: busy,
+                  onClick: () => setShowAllRemote(current => !current),
+                }, showAllRemote ? '只看当前节点' : '显示全部节点')
+              : null,
             h(Button, { size: 'sm', variant: 'outline', disabled: busy, onClick: () => { void loadRemote() } }, '刷新远端'),
           ),
           remote.error !== null ? h('p', { className: 'secm-error' }, remote.error) : null,
@@ -618,15 +633,19 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState(false)
       const [remote, setRemote] = React.useState(null)
 
+      const [showAllRemote, setShowAllRemote] = React.useState(false)
       React.useEffect(() => {
         void (async () => {
           try {
-            setRemote(await call('/remote'))
+            const params = []
+            if (cwd !== null && cwd !== undefined && cwd !== '') params.push(`cwd=${encodeURIComponent(cwd)}`)
+            if (showAllRemote) params.push('all=1')
+            setRemote(await call(`/remote${params.length === 0 ? '' : `?${params.join('&')}`}`))
           } catch {
             setRemote({ available: false, nodes: [], hint: '远端节点读取失败' })
           }
         })()
-      }, [])
+      }, [cwd, showAllRemote])
 
       const load = React.useCallback(async () => {
         try {
@@ -843,7 +862,19 @@ window.__ModuleLoader__.load({
                   ),
               remote !== null && remote.available !== false && (remote.nodes ?? []).length > 0
                 ? h('div', null,
-                    h('div', { className: 'secm-insp-sect' }, `远端节点 · ${String((remote.nodes ?? []).length)}`),
+                    h('div', { className: 'secm-insp-head-row' },
+                      h('span', { className: 'secm-insp-sect' }, `远端节点 · ${String((remote.nodes ?? []).length)}${(remote.total ?? 0) > 1 && remote.scoped !== null ? `/${String(remote.total)}` : ''}`),
+                      h('span', { style: { flex: '1' } }),
+                      (remote.total ?? 0) > 1
+                        ? h(Button, {
+                            size: 'sm', variant: 'ghost',
+                            onClick: () => setShowAllRemote(current => !current),
+                          }, showAllRemote ? '只看当前节点' : '显示全部节点')
+                        : null,
+                    ),
+                    remote.scoped !== null && !showAllRemote
+                      ? h('p', { className: 'secm-insp-note' }, `当前工作区镜像的是 ${remote.scoped.label.length > 0 ? remote.scoped.label : remote.scoped.node}（${remote.scoped.node}）`)
+                      : null,
                     h('ul', { className: 'secm-insp-rows' }, (remote.nodes ?? []).map(node => h('li', { key: node.node, className: 'secm-insp-row' },
                         h('span', { className: 'secm-insp-name' }, node.label.length > 0 ? node.label : node.node),
                         h('span', { className: 'secm-insp-desc' }, (node.files ?? []).length === 0

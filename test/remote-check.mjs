@@ -28,7 +28,14 @@ function fakeDevspace() {
   }
   return {
     version: 1,
-    nodes: async () => [{ name: 'node-a', label: '节点 A', root: '/srv/project', notes: '', platform: '', dialect: 'posix', state: 'ready', error: null, toolCount: 2 }],
+    nodes: async () => [
+      { name: 'node-a', label: '节点 A', root: '/srv/project', notes: '', platform: '', dialect: 'posix', state: 'ready', error: null, toolCount: 2 },
+      { name: 'node-b', label: '节点 B', root: '/srv/other', notes: '', platform: '', dialect: 'win', state: 'ready', error: null, toolCount: 0 },
+    ],
+    // The mirror lookup that scopes a listing to "the node this workspace is on".
+    mirror: async (cwd) => (String(cwd).includes('devspace-b')
+      ? { node: 'node-b', label: '节点 B', remotePath: '/srv/other', relative: '', localPath: cwd }
+      : null),
     tools: async () => ['bash', 'read'],
     listDirs: async (node, path) => {
       if (!(path in dirs)) throw new Error(`no such dir: ${path}`)
@@ -110,6 +117,21 @@ const absent = makeContext(undefined)
 apply(absent.ctx, { dshHome: '/tmp/secrets-home' })
 const degraded = await hit(absent.routes, '/secrets-manager/remote')
 check('a harness without devspace degrades to available:false', degraded.json?.available === false, degraded.json)
+
+// ---- scoping: only the node this workspace mirrors --------------------------
+{
+  const local = makeContext(fakeDevspace())
+  apply(local.ctx, {})
+  const all = await hit(local.routes, '/secrets-manager/remote')
+  check('without a mirror every node is listed', (all.json?.nodes ?? []).length === 2 && all.json?.scoped === null, all.json?.nodes?.map(node => node.node))
+
+  const scoped = await hit(local.routes, `${'/secrets-manager/remote'}?cwd=${encodeURIComponent('/Users/joe/DevSpace/devspace-b/proj')}`)
+  check('a mirrored workspace narrows the listing to its node', (scoped.json?.nodes ?? []).length === 1 && scoped.json?.nodes[0]?.node === 'node-b', scoped.json?.nodes?.map(node => node.node))
+  check('the scope is reported back', scoped.json?.scoped?.node === 'node-b' && scoped.json?.total === 2, scoped.json?.scoped)
+
+  const forced = await hit(local.routes, `${'/secrets-manager/remote'}?cwd=${encodeURIComponent('/Users/joe/DevSpace/devspace-b/proj')}&all=1`)
+  check('all=1 overrides the scope', (forced.json?.nodes ?? []).length === 2 && forced.json?.scoped === null, forced.json?.nodes?.map(node => node.node))
+}
 
 report()
 process.exit(checks.every(item => item.ok) ? 0 : 1)

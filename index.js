@@ -442,12 +442,28 @@ export function apply(ctx, config = {}) {
    * names and no values. The node root plus one level of subdirectories is
    * scanned — enough for a repository root and its packages.
    */
-  const remoteEnv = async () => {
+
+  /**
+   * The node a working directory mirrors, when it is inside one: the listing
+   * then narrows to that node instead of every node this harness mounts.
+   */
+  const scopedMirror = async (devspace, cwd) => {
+    if (typeof cwd !== 'string' || cwd.length === 0) return null
+    try {
+      return (await devspace.mirror(cwd)) ?? null
+    } catch {
+      return null
+    }
+  }
+
+  const remoteEnv = async (input = {}) => {
     const devspace = devspaceService()
     if (devspace === null) {
       return { available: false, nodes: [], hint: '这个 harness 没有装 DevSpace 节点插件，所以没有远端可以列。' }
     }
-    const nodes = await devspace.nodes()
+    const all = await devspace.nodes()
+    const scope = input.all === true ? null : await scopedMirror(devspace, input.cwd)
+    const nodes = scope === null ? all : all.filter(node => node.name === scope.node)
     const listed = []
     for (const node of nodes) {
       const files = []
@@ -486,7 +502,12 @@ export function apply(ctx, config = {}) {
         errors,
       })
     }
-    return { available: true, nodes: listed }
+    return {
+      available: true,
+      nodes: listed,
+      scoped: scope === null ? null : { node: scope.node, label: scope.label, remotePath: scope.remotePath, localPath: scope.localPath },
+      total: all.length,
+    }
   }
 
   // ---- state and routes --------------------------------------------
@@ -612,7 +633,13 @@ export function apply(ctx, config = {}) {
       const url = new URL(String(req.url), 'http://localhost')
       const route = url.pathname.slice(ROUTE_PREFIX.length) || '/'
       if (req.method === 'GET' && route === '/remote') {
-        sendJson(res, 200, await remoteEnv())
+        const cwd = url.searchParams.get('cwd')
+        const sessionId = url.searchParams.get('sessionId')
+        const agent = sessionId === null ? undefined : ctx.get('agents')?.get?.(sessionId)
+        sendJson(res, 200, await remoteEnv({
+          cwd: cwd ?? agent?.session?.header?.cwd ?? undefined,
+          all: url.searchParams.get('all') === '1',
+        }))
         return
       }
       if (req.method === 'GET' && route === '/state') {
@@ -656,6 +683,8 @@ export function apply(ctx, config = {}) {
         value: { type: 'string', description: 'New value; required for set.' },
         path: { type: 'string', description: 'Target .env path; defaults to the project root .env.' },
         packageDir: { type: 'string', description: 'Workspace package directory (relative); its .env is the target.' },
+        cwd: { type: 'string', description: 'Directory to resolve the project chain (and the mirrored node) for; defaults to the process cwd.' },
+        all: { type: 'boolean', description: 'For `remote`: list every node instead of only the node this working directory mirrors.' },
       },
       required: ['action'],
       additionalProperties: false,
@@ -670,7 +699,7 @@ export function apply(ctx, config = {}) {
       const state = await buildState(cwd)
       if (state.projectRoot === null) throw new HttpError(400, 'this session has no workspace directory')
       switch (args.action) {
-        case 'remote': return await remoteEnv()
+        case 'remote': return await remoteEnv({ cwd: args?.cwd, all: args?.all === true })
         case 'list':
         case 'files':
           return {
