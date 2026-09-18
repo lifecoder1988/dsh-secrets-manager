@@ -527,7 +527,7 @@ export function apply(ctx, config = {}) {
           dirs = (await devspace.listDirs(node.name, base)).filter(entry => entry.hidden !== true)
         } catch (error) {
           // A base the node does not have is the normal case, not an error.
-          if (!/没有这个文件|no such|not exist|找不到|Cannot find|502/.test(messageOf(error))) {
+          if (!/没有这个文件|没有这个目录|no such|not exist|找不到|Cannot find|502/.test(messageOf(error))) {
             errors.push(`${base === '' ? '.' : base}: ${messageOf(error)}`)
           }
           continue
